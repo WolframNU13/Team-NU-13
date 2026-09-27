@@ -130,9 +130,10 @@ def _camera(eye: tuple[float, float, float]) -> dict:
 CAMERAS = {"Iso": (1.55, 1.2, 0.75), "Front": (0.0, 2.1, 0.0), "Top": (0.0, 0.01, 2.1), "Side": (2.1, 0.0, 0.0)}
 
 
-_LOCUS = "<b>chr22:%{customdata[1]:,.0f}–%{customdata[2]:,.0f}</b><br>bin %{customdata[0]:,.0f}<br>"
-_TIP_DATA = _LOCUS + "GC %{customdata[3]:.3f} · H3K27ac %{customdata[4]:.2f}<extra></extra>"
-_TIP_GAP = _LOCUS + "unassembled (N) · no sequence<extra></extra>"
+def _tips(chrom_name: str) -> tuple[str, str]:
+    locus = f"<b>{chrom_name}:" + "%{customdata[1]:,.0f}–%{customdata[2]:,.0f}</b><br>bin %{customdata[0]:,.0f}<br>"
+    return (locus + "GC %{customdata[3]:.3f} · H3K27ac %{customdata[4]:.2f}<extra></extra>",
+            locus + "unassembled (N) · no sequence<extra></extra>")
 
 
 def _submesh(verts: np.ndarray, faces: np.ndarray, keep: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -147,7 +148,8 @@ def _submesh(verts: np.ndarray, faces: np.ndarray, keep: np.ndarray) -> tuple[np
 def viewport(sub: np.ndarray, idx: np.ndarray, intensity: np.ndarray, hover: list[str], *, scale: str,
              focus_color: str | None, style: str, radius: float, bead_px: int, height: int,
              context: np.ndarray | None, uirevision: str, scale_bar_nm: float,
-             gc: np.ndarray, epi: np.ndarray, valid: np.ndarray) -> go.Figure:
+             gc: np.ndarray, epi: np.ndarray, valid: np.ndarray, chrom: genome.Chrom | None = None) -> go.Figure:
+    chrom = chrom or genome.DEFAULT
     fig = go.Figure()
     n = len(sub)
     cs = state_colorscale(scale, focus_color)
@@ -166,11 +168,12 @@ def viewport(sub: np.ndarray, idx: np.ndarray, intensity: np.ndarray, hover: lis
         ring_bead = np.clip(np.rint(param).astype(np.int64), 0, n - 1)
         vbead = np.concatenate([np.repeat(ring_bead, sides), [0, n - 1]])
         gb = idx[vbead]
-        custom = np.column_stack([gb, genome.bin_start(gb) + 1, genome.bin_end(gb),
+        custom = np.column_stack([gb, chrom.bin_start(gb) + 1, chrom.bin_end(gb),
                                   np.nan_to_num(gc[vbead], nan=0.0), np.nan_to_num(epi[vbead], nan=0.0)])
         # float64 on purpose: float32 is exact only to 2^24 = 16.7 Mb, so chr22 loci would round.
         on_data = valid[vbead][faces].all(axis=1)       # a face is 'unassembled' if any corner is
-        for keep, tip in ((on_data, _TIP_DATA), (~on_data, _TIP_GAP)):
+        tip_data, tip_gap = _tips(chrom.name)
+        for keep, tip in ((on_data, tip_data), (~on_data, tip_gap)):
             if not keep.any():
                 continue
             used, f, _ = _submesh(verts, faces, keep)
@@ -241,8 +244,9 @@ def viewport(sub: np.ndarray, idx: np.ndarray, intensity: np.ndarray, hover: lis
 # ----------------------------------------------------------------------------------------
 # 2D analytics
 # ----------------------------------------------------------------------------------------
-def scaling_chart(s: np.ndarray, r: np.ndarray, fit_range: tuple[int, int], nu: float, height: int = 250) -> go.Figure:
-    kb = s * genome.RESOLUTION / 1000
+def scaling_chart(s: np.ndarray, r: np.ndarray, fit_range: tuple[int, int], nu: float, height: int = 250,
+                  resolution: int = genome.RESOLUTION) -> go.Figure:
+    kb = s * resolution / 1000
     fig = go.Figure()
     sel = (s >= fit_range[0]) & (s <= fit_range[1])
     if sel.sum() >= 2:
@@ -274,8 +278,10 @@ def bond_histogram(bonds_b0: np.ndarray, height: int = 170) -> go.Figure:
 
 
 def tracks_chart(idx: np.ndarray, gc: np.ndarray, epi: np.ndarray, focus_runs: list[tuple[int, int]],
+                 chrom: genome.Chrom | None = None,
                  height: int = 250) -> go.Figure:
-    mb = genome.bin_start(idx) / 1e6
+    chrom = chrom or genome.DEFAULT
+    mb = chrom.bin_start(idx) / 1e6
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1)
     fig.add_trace(go.Scatter(x=mb, y=gc, mode="lines", line=dict(color=T.ACCENT, width=1.2), connectgaps=False,
                              hovertemplate="%{x:.2f} Mb<br>f_GC %{y:.3f}<extra></extra>"), row=1, col=1)
@@ -284,7 +290,7 @@ def tracks_chart(idx: np.ndarray, gc: np.ndarray, epi: np.ndarray, focus_runs: l
                              hovertemplate="%{x:.2f} Mb<br>H3K27ac %{y:.2f}<extra></extra>"), row=2, col=1)
     for a, b in focus_runs:
         for r in (1, 2):
-            fig.add_vrect(x0=genome.bin_start(a) / 1e6, x1=genome.bin_start(b) / 1e6, fillcolor=T.ACCENT_SOFT,
+            fig.add_vrect(x0=chrom.bin_start(a) / 1e6, x1=chrom.bin_start(b) / 1e6, fillcolor=T.ACCENT_SOFT,
                           line_width=0, layer="below", row=r, col=1)
     lay = T.plot_layout(height, margin=dict(l=52, r=12, t=6, b=36))
     fig.update_layout(**{k: v for k, v in lay.items() if k not in ("xaxis", "yaxis")})
@@ -296,9 +302,10 @@ def tracks_chart(idx: np.ndarray, gc: np.ndarray, epi: np.ndarray, focus_runs: l
     return fig
 
 
-def matrix_chart(mat: np.ndarray, lo: int, k: int, kind: str, height: int = 330) -> go.Figure:
+def matrix_chart(mat: np.ndarray, lo: int, k: int, kind: str, height: int = 330,
+                 resolution: int = genome.RESOLUTION) -> go.Figure:
     m = mat.shape[0]
-    mb = (lo + (np.arange(m) + 0.5) * k) * genome.RESOLUTION / 1e6
+    mb = (lo + (np.arange(m) + 0.5) * k) * resolution / 1e6
     if kind == "contacts":
         z = np.log10(1 + mat)
         cs, title, fmt = T.CONTACT_SCALE, "log₁₀(1+M)", "%{z:.2f}"
@@ -315,8 +322,9 @@ def matrix_chart(mat: np.ndarray, lo: int, k: int, kind: str, height: int = 330)
     return fig
 
 
-def decay_chart(s: np.ndarray, p: np.ndarray, gamma: float, height: int = 200) -> go.Figure:
-    kb = s * genome.RESOLUTION / 1000
+def decay_chart(s: np.ndarray, p: np.ndarray, gamma: float, height: int = 200,
+                resolution: int = genome.RESOLUTION) -> go.Figure:
+    kb = s * resolution / 1000
     ok = p > 0
     fig = go.Figure(go.Scatter(x=kb[ok], y=p[ok], mode="lines+markers", line=dict(color=T.TERRACOTTA, width=1.5),
                                marker=dict(size=4), hovertemplate="s = %{x:,.0f} kb<br>P = %{y:.3g}<extra></extra>"))
@@ -346,4 +354,90 @@ def loss_chart(history: dict[str, list], lam_smooth: float, lam_steric: float, h
     fig.update_layout(**T.plot_layout(height, showlegend=True, margin=dict(l=52, r=12, t=6, b=40),
                                       legend=dict(orientation="h", y=-0.28, x=0, font=dict(size=11)),
                                       xaxis=dict(title="Epoch"), yaxis=dict(type="log", title="Loss", exponentformat="power")))
+    return fig
+
+
+# ----------------------------------------------------------------------------------------
+# 4D: animated trajectories and per-frame analytics
+# ----------------------------------------------------------------------------------------
+def trajectory_figure(frames: np.ndarray, values: np.ndarray, colorscale: list, labels: list[str], hover: list[str],
+                      *, height: int = 640, bead_px: int = 3, line_px: int = 5, frame_ms: int = 120,
+                      uirevision: str = "traj") -> go.Figure:
+    """Client-side animation of T frames (play / pause / scrub), no server round-trip per frame.
+
+    `values` is (M,) for a fixed colouring or (T, M) for a per-frame colouring (e.g. displacement).
+    Axis ranges are fixed over all frames so the camera never jumps.
+    """
+    t_n = frames.shape[0]
+    vals = values if values.ndim == 2 else np.broadcast_to(values, (t_n, len(values)))
+    cmin, cmax = float(np.nanmin(vals)), float(np.nanmax(vals))
+    if cmax <= cmin:
+        cmax = cmin + 1.0
+
+    def trace(t: int) -> go.Scatter3d:
+        x = frames[t]
+        return go.Scatter3d(
+            x=x[:, 0], y=x[:, 1], z=x[:, 2], mode="lines+markers", text=hover,
+            hovertemplate="%{text}<extra></extra>",
+            line=dict(width=line_px, color=vals[t], colorscale=colorscale, cmin=cmin, cmax=cmax),
+            marker=dict(size=bead_px, color=vals[t], colorscale=colorscale, cmin=cmin, cmax=cmax, line=dict(width=0)))
+
+    fig = go.Figure(data=[trace(0)],
+                    frames=[go.Frame(data=[trace(t)], traces=[0], name=str(t)) for t in range(t_n)])
+    lo = frames.reshape(-1, 3).min(axis=0)
+    hi = frames.reshape(-1, 3).max(axis=0)
+    span = np.maximum(hi - lo, 1e-9)
+    axis = lambda k: dict(visible=False, showbackground=False, range=[float(lo[k]), float(hi[k])])  # noqa: E731
+    play = dict(frame=dict(duration=frame_ms, redraw=True), transition=dict(duration=0), fromcurrent=True, mode="immediate")
+    fig.update_layout(
+        height=height, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="rgba(0,0,0,0)", showlegend=False,
+        uirevision=uirevision,
+        hoverlabel=dict(bgcolor=T.PAPER_RAISED, bordercolor=T.RULE_STRONG, font=dict(family=T.MONO, size=12, color=T.INK)),
+        scene=dict(xaxis=axis(0), yaxis=axis(1), zaxis=axis(2), aspectmode="manual",
+                   aspectratio=dict(x=span[0] / span.max(), y=span[1] / span.max(), z=span[2] / span.max()),
+                   camera=_camera(CAMERAS["Iso"]), dragmode="turntable", bgcolor="rgba(0,0,0,0)"),
+        updatemenus=[dict(type="buttons", direction="right", x=0.0, y=0.0, xanchor="left", yanchor="bottom",
+                          bgcolor=T.PAPER_RAISED, bordercolor=T.RULE, font=dict(family=T.SANS, size=12, color=T.INK),
+                          showactive=False, pad=dict(l=0, r=6, t=0, b=0),
+                          buttons=[dict(label="Play", method="animate", args=[None, play]),
+                                   dict(label="Pause", method="animate",
+                                        args=[[None], dict(frame=dict(duration=0, redraw=False), mode="immediate")])])],
+        sliders=[dict(active=0, x=0.16, y=0.0, len=0.84, xanchor="left", yanchor="bottom", pad=dict(t=0, b=6),
+                      bgcolor=T.RULE, bordercolor=T.RULE, activebgcolor=T.ACCENT, tickcolor=T.RULE_STRONG,
+                      font=dict(family=T.MONO, size=10, color=T.MUTED),
+                      currentvalue=dict(prefix="", visible=True, xanchor="right",
+                                        font=dict(family=T.SANS, size=12, color=T.INK_2)),
+                      steps=[dict(label=labels[t], method="animate",
+                                  args=[[str(t)], dict(frame=dict(duration=0, redraw=True), mode="immediate",
+                                                       transition=dict(duration=0))]) for t in range(t_n)])],
+    )
+    return fig
+
+
+def timeseries_chart(times: np.ndarray, series: list[tuple[str, np.ndarray, str]], time_label: str,
+                     height: int = 330) -> go.Figure:
+    """Small multiples of per-frame metrics sharing the time axis."""
+    fig = make_subplots(rows=len(series), cols=1, shared_xaxes=True, vertical_spacing=0.08)
+    for r, (name, y, color) in enumerate(series, start=1):
+        fig.add_trace(go.Scatter(x=times, y=y, mode="lines+markers", line=dict(color=color, width=1.6),
+                                 marker=dict(size=4), hovertemplate=f"%{{x}}<br>{name} %{{y:,.1f}}<extra></extra>"),
+                      row=r, col=1)
+        fig.update_yaxes(title_text=name, row=r, col=1)
+    lay = T.plot_layout(height, margin=dict(l=64, r=12, t=6, b=40))
+    fig.update_layout(**{k: v for k, v in lay.items() if k not in ("xaxis", "yaxis")})
+    fig.update_xaxes(**lay["xaxis"])
+    fig.update_yaxes(**lay["yaxis"])
+    fig.update_xaxes(title_text=time_label, row=len(series), col=1)
+    return fig
+
+
+def displacement_profile(position_mb: np.ndarray, disp_nm: np.ndarray, kind: np.ndarray, height: int = 220) -> go.Figure:
+    """Per-bead displacement between the first and last frame, along the (derived) chain."""
+    colors = np.array([T.INK_2, T.OCHRE, T.TERRACOTTA, T.VIOLET])[np.clip(kind, 0, 3)]
+    fig = go.Figure(go.Scatter(x=np.arange(len(disp_nm)), y=disp_nm, mode="markers",
+                               marker=dict(size=3, color=colors), customdata=position_mb,
+                               hovertemplate="bead %{x:,}<br>%{customdata:.2f} Mb<br>%{y:,.0f} nm<extra></extra>"))
+    fig.update_layout(**T.plot_layout(height, margin=dict(l=56, r=12, t=6, b=40),
+                                      xaxis=dict(title="Bead along the (rearranged) chain"),
+                                      yaxis=dict(title="Displacement (nm)")))
     return fig

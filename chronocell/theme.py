@@ -41,6 +41,10 @@ SCALES: dict[str, list[str]] = {
     "GC content": ["#AEB4EC", "#6B75DE", ACCENT, "#1A2175"],
     "H3K27ac": ["#E3BBA3", "#D27A4F", TERRACOTTA, "#6E2408"],
     "Monochrome": ["#2B2D2A", "#2B2D2A"],
+    # Classic residue-index spectrum (PyMOL-style blue -> red), bead 1 to bead N of the view.
+    "Residue Index Spectrum": ["#3A2FB5", "#1F74D1", "#1E9A8A", "#4E9A2E", OCHRE, "#D0561F", "#C2223A"],
+    # Epigenomic heat map: low signal blue -> high signal red / magenta.
+    "Epigenomic Signal Heatmap": ["#1F35C8", "#2A8FC4", OCHRE, "#D8342B", "#B0138F"],
 }
 DISTANCE_SCALE = [[0.0, "#1A2175"], [0.2, ACCENT], [0.5, "#9AA2E6"], [0.8, "#DDE0F2"], [1.0, PAPER_RAISED]]
 CONTACT_SCALE = [[0.0, PAPER_RAISED], [0.25, "#EBC9B5"], [0.55, "#D9744A"], [0.8, "#A8380F"], [1.0, "#4A1705"]]
@@ -66,7 +70,14 @@ CSS = f"""
 
 /* ---- frame ------------------------------------------------------------------------ */
 .stApp {{ background: var(--paper); color: var(--ink); }}
-header[data-testid="stHeader"] {{ display: none; }}
+/* The header stays hidden, except for the button that re-opens a collapsed sidebar (it lives in the header). */
+header[data-testid="stHeader"] {{ background: transparent !important; height: 0 !important; min-height: 0 !important;
+  pointer-events: none; overflow: visible; }}
+header[data-testid="stHeader"] [data-testid="stToolbarActions"], header[data-testid="stHeader"] [data-testid="stMainMenu"],
+header[data-testid="stHeader"] [data-testid="stAppDeployButton"], header[data-testid="stHeader"] [data-testid="stStatusWidget"],
+header[data-testid="stHeader"] [data-testid="stHeaderActionElements"], [data-testid="stDecoration"] {{ display: none !important; }}
+[data-testid="stExpandSidebarButton"] {{ position: fixed !important; top: 12px; left: 10px; z-index: 1001; pointer-events: auto;
+  background: var(--paper-raised); border: 1px solid var(--rule); border-radius: 6px; }}
 .block-container {{ padding: 26px 44px 20px !important; max-width: 1760px; }}
 .stApp, .stApp p, .stApp label, .stApp li {{ font-family: var(--sans); }}
 *:focus-visible {{ outline: 2px solid var(--accent) !important; outline-offset: 2px; }}
@@ -91,12 +102,12 @@ header[data-testid="stHeader"] {{ display: none; }}
 .cc-rule {{ border: 0; border-top: 1px solid var(--rule); margin: 10px 0 18px; }}
 
 /* ---- region control (numbered options, as in the reference slider) ---------------- */
-.st-key-region [data-testid="stWidgetLabel"] p {{ font: 400 13px/1.4 var(--sans); color: var(--muted); }}
-.st-key-region button {{ background: transparent !important; border: none !important; box-shadow: none !important;
+[class*="st-key-seg"] [data-testid="stWidgetLabel"] p {{ font: 400 13px/1.4 var(--sans); color: var(--muted); }}
+[class*="st-key-seg"] button {{ background: transparent !important; border: none !important; box-shadow: none !important;
   color: var(--ink-2) !important; padding: 4px 14px 4px 0 !important; border-radius: 0 !important; }}
-.st-key-region button p {{ font: 400 14px/1.3 var(--sans) !important; }}
-.st-key-region button[kind$="Active"], .st-key-region button[data-testid$="Active"] {{ color: var(--accent) !important; }}
-.st-key-region button:hover {{ color: var(--accent) !important; }}
+[class*="st-key-seg"] button p {{ font: 400 14px/1.3 var(--sans) !important; }}
+[class*="st-key-seg"] button[kind$="Active"], [class*="st-key-seg"] button[data-testid$="Active"] {{ color: var(--accent) !important; }}
+[class*="st-key-seg"] button:hover {{ color: var(--accent) !important; }}
 
 /* ---- ideogram --------------------------------------------------------------------- */
 .cc-ideo {{ position: relative; height: 14px; display: flex; border: 1px solid var(--rule-strong); border-radius: 7px;
@@ -144,10 +155,50 @@ header[data-testid="stHeader"] {{ display: none; }}
 .cc-hub {{ display: grid; grid-template-columns: 1fr auto; font: 400 12.5px/1.8 var(--mono); color: var(--ink-2);
   border-bottom: 1px solid var(--rule); }}
 
+/* ---- banners (reference model / simulated scenario) ------------------------------- */
+.cc-banner {{ display: block; font: 400 13px/1.5 var(--sans); color: #6A3A12; background: #F7EDE4;
+  border: 1px solid #E2C4A8; border-left: 3px solid var(--terracotta); border-radius: 4px; padding: 9px 14px; margin: 4px 0 14px; }}
+.cc-banner.info {{ color: #1F2A7A; background: var(--accent-soft); border-color: #C3C8EF; border-left-color: var(--accent); }}
+.cc-banner b {{ font-weight: 600; }}
+.cc-banner code {{ font-family: var(--mono); font-size: 12px; background: none; color: inherit; padding: 0; }}
+
 /* ---- footer status bar ------------------------------------------------------------ */
 .cc-status {{ display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; border-top: 1px solid var(--rule);
   padding: 12px 0 0; margin-top: 14px; font: 400 12px/1.5 var(--sans); color: var(--muted); }}
 .cc-status .cc-num {{ color: var(--ink-2); }}
+
+/* ---- sidebar (biological state + ChronoAgent settings) ---------------------------- */
+section[data-testid="stSidebar"] {{ background: var(--paper-raised); border-right: 1px solid var(--rule); }}
+section[data-testid="stSidebar"] .block-container, section[data-testid="stSidebarUserContent"] {{ padding-top: 18px !important; }}
+.cc-side-title {{ font: 600 12px/1.4 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ink);
+  border-top: 1px solid var(--rule); padding-top: 12px; margin: 6px 0 4px; }}
+.cc-files {{ list-style: none; margin: 4px 0 8px; padding: 0; }}
+.cc-files li {{ font: 400 12px/1.4 var(--sans); color: var(--ink-2); padding: 5px 0; border-bottom: 1px solid var(--rule);
+  overflow-wrap: anywhere; }}
+.cc-files li code {{ font: 400 11.5px var(--mono); color: var(--ink); background: none; padding: 0; }}
+.cc-files li small {{ display: block; color: var(--muted); font-size: 11px; }}
+.cc-files .cc-tag {{ padding: 2px 6px; font-size: 10.5px; }}
+
+/* ---- metric dashboard (hairline cells, not boxed cards) ---------------------------- */
+.cc-cards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule); margin: 4px 0 10px; }}
+.cc-card {{ display: flex; flex-direction: column; gap: 2px; padding: 10px 16px 10px 0; min-width: 0; }}
+.cc-card + .cc-card {{ border-left: 1px solid var(--rule); padding-left: 16px; }}
+.cc-card .k {{ font: 500 11px/1.3 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }}
+.cc-card .v {{ font: 500 26px/1.15 var(--mono); letter-spacing: -0.02em; color: var(--ink); white-space: nowrap; }}
+.cc-card .v em {{ font: 400 12.5px var(--sans); font-style: normal; color: var(--muted); margin-left: 5px; letter-spacing: 0; }}
+.cc-card .v.s {{ font: 500 17px/1.3 var(--sans); white-space: normal; letter-spacing: -0.01em; padding-top: 6px; }}
+.cc-card .d {{ font: 400 12px/1.35 var(--sans); color: var(--muted); overflow-wrap: anywhere; }}
+.cc-card .d.up {{ color: var(--terracotta); }}
+.cc-card .d.down {{ color: var(--accent); }}
+
+/* ---- ChronoAgent ------------------------------------------------------------------- */
+[class*="st-key-agent_out"] h3 {{ font: 600 15px/1.3 var(--sans) !important; color: var(--ink); margin: 14px 0 4px !important;
+  padding: 0 !important; border-top: 1px solid var(--rule); padding-top: 10px !important; }}
+[class*="st-key-agent_out"] p, [class*="st-key-agent_out"] li {{ font: 400 13.5px/1.55 var(--sans); color: var(--ink-2); }}
+[class*="st-key-agent_out"] strong {{ color: var(--ink); font-weight: 600; }}
+.cc-banner ul {{ margin: 4px 0 0 18px; padding: 0; }}
+.cc-banner li {{ font-size: 12.5px; }}
 
 /* ---- widgets ---------------------------------------------------------------------- */
 .stDownloadButton button, .stButton button {{ font: 500 13px/1 var(--sans) !important; }}

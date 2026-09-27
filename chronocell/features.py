@@ -37,12 +37,14 @@ def gc_fraction(sequence: bytes | str, n_bins: int = genome.N_BINS, resolution: 
     invalid bins get NaN.
     """
     raw = sequence.encode() if isinstance(sequence, str) else sequence
+    seq_len = len(raw)
     seq = np.frombuffer(raw, dtype=np.uint8) & 0xDF              # ASCII upper-case
     seq = _pad_to_bins(seq, n_bins, resolution, ord("N"))
     gc = ((seq == _G) | (seq == _C)).sum(axis=1)
     called = gc + ((seq == _A) | (seq == _T)).sum(axis=1)
-    lengths = genome.bin_lengths(n_bins) if n_bins == genome.N_BINS else np.full(n_bins, resolution)
-    valid = called >= min_called * lengths
+    # true bin lengths from the sequence itself (the final bin is usually partial)
+    lengths = np.clip(seq_len - np.arange(n_bins) * resolution, 0, resolution)
+    valid = (called > 0) & (called >= min_called * lengths)
     with np.errstate(invalid="ignore", divide="ignore"):
         f = np.where(valid, gc / np.maximum(called, 1), np.nan)
     return f, valid

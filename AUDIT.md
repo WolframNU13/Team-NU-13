@@ -1,5 +1,9 @@
 # ChronoCell-5D — audit and rewrite (v1 → v2)
 
+**v3 note.** Errors fixed in v3 (custom-window crash, empty-window fit, etc.) are listed in APP_GUIDE.md §1.
+
+**v3.1 note.** APP_GUIDE.md §1 lists the v3.1 fixes: the stale-module `MAIN_CHROMOSOMES` crash, the unreachable sidebar, silently dropped files, graph failures masking structures, and tracks mistaken for structures. §12–14 cover the biological-state engine, ChronoAgent and the dashboard.
+
 **Scope.** The team specification's code blocks (Teammate 1 graph assembly, Teammate 2 EGNN training, Teammate 3 export) from *AI-Powered Codon Optimization for Vaccines.pdf* (both versions), and the v1 Streamlit app (kept for reference at `legacy/app_v1.py`).
 
 **Method.** Every finding below was reproduced or measured in this repository. The fixes are covered by 21 tests (`python -m pytest`, all passing) and the benchmark in `python -m chronocell.benchmark`. Where a number is quoted, it was measured.

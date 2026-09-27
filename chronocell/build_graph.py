@@ -25,20 +25,27 @@ def from_files(fasta: str, bigwig: str, mcool: str, chrom: str = genome.CHROM,
     import pyBigWig
     from pyfaidx import Fasta
 
-    seq = str(Fasta(fasta)[chrom][:]).encode()
+    fa = Fasta(fasta)
+    seq = str(fa[chrom if chrom in fa else chrom.removeprefix("chr")][:]).encode()
     n_bins = int(np.ceil(len(seq) / resolution))
     gc, valid = features.gc_fraction(seq, n_bins, resolution)
 
     bw = pyBigWig.open(bigwig)
     key = chrom if chrom in bw.chroms() else chrom.removeprefix("chr")
+    if key not in bw.chroms():
+        raise ValueError(f"{bigwig} has no {chrom} track (chromosomes: {list(bw.chroms())[:5]}...).")
     values = np.asarray(bw.values(key, 0, bw.chroms()[key]), dtype=np.float64)   # NaN = no data
     bw.close()
     epi = features.binned_mean(values, n_bins, resolution)
     epi = np.where(valid, epi, np.nan)
 
-    clr = cooler.Cooler(f"{mcool}::resolutions/{resolution}")
-    pixels = clr.matrix(balance=False, as_pixels=True).fetch(chrom)
-    offset = int(clr.offset(chrom))
+    uri = f"{mcool}::resolutions/{resolution}" if cooler.fileops.is_multires_file(mcool) else mcool
+    clr = cooler.Cooler(uri)
+    if clr.binsize != resolution:
+        raise ValueError(f"{mcool} has {clr.binsize:,} bp bins; requested {resolution:,} bp.")
+    cname = chrom if chrom in clr.chromnames else chrom.removeprefix("chr")
+    pixels = clr.matrix(balance=False, as_pixels=True).fetch(cname)
+    offset = int(clr.offset(cname))
     ci, cj, cm = features.contacts_from_pixels(pixels["bin1_id"].to_numpy() - offset,
                                                pixels["bin2_id"].to_numpy() - offset,
                                                pixels["count"].to_numpy(), n_bins)

@@ -55,3 +55,11 @@ def test_mds_initialisation_recovers_global_fold():
     target = physics.contact_target_distance(syn.cm[m], physics.reference_count(syn.ci[m], syn.cj[m], syn.cm[m]), b0=1.0)
     x0 = egnn.shortest_path_mds(hi - lo, syn.ci[m] - lo, syn.cj[m] - lo, target)
     assert physics.distance_correlation(syn.coords[lo:hi], x0) > 0.85
+
+
+def test_mds_keeps_contact_free_stretches_compact():
+    """Assembly gaps (no contacts) must not be laid out as extended rods by the initialisation."""
+    syn = synthetic.build(seed=7)
+    target = physics.contact_target_distance(syn.cm, physics.reference_count(syn.ci, syn.cj, syn.cm), b0=1.0)
+    x0 = egnn.shortest_path_mds(len(syn.coords), syn.ci, syn.cj, target) * physics.B0_NM
+    assert physics.radius_of_gyration(x0) < 2.5 * physics.radius_of_gyration(syn.coords)

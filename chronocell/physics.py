@@ -25,6 +25,14 @@ from dataclasses import dataclass
 import numpy as np
 
 B0_NM = 50.0            # bond rest length for a 10 kb bead (nm)
+
+
+def bond_length_for(resolution_bp: int, nu: float = 1.0 / 3.0) -> float:
+    """b0 for coarser beads: b0(r) = 50 nm * (r / 10 kb)^nu, compact (fractal-globule) scaling.
+
+    chr22 uses 10 kb -> 50 nm; a 40 kb bead (chr4 default) -> 79 nm; 50 kb (chr1) -> 85 nm.
+    """
+    return B0_NM * (resolution_bp / 10_000) ** nu
 ALPHA = 3.0             # contact-frequency / distance power law exponent
 D_MIN_FACTOR = 0.8      # excluded-volume diameter as a fraction of b0
 # Contact target distances are clipped to [d_min, 8 b0]. The lower bound equals the
@@ -355,3 +363,56 @@ def coarse_contact_map(ci: np.ndarray, cj: np.ndarray, cm: np.ndarray, lo: int, 
     off = a != b                       # mirror off-diagonal blocks only; never double the diagonal
     np.add.at(mat, (b[off], a[off]), w[off])
     return mat, k
+
+
+# ----------------------------------------------------------------------------------------
+# Shape and packing descriptors (metric dashboard and ChronoAgent)
+# ----------------------------------------------------------------------------------------
+def max_span(x: np.ndarray, chunk: int = 256) -> float:
+    """Maximum pairwise distance (the structure's 3D diameter), exact.
+
+    The farthest pair always lies on the convex hull; to stay dependency-free the search is
+    pruned instead: beads within the inscribed sphere of the bounding box that cannot beat the
+    current best are dropped, then the remaining pairs are scanned in chunks (O(N * M) memory).
+    """
+    x = np.asarray(x, dtype=np.float64)
+    if len(x) < 2:
+        return 0.0
+    c = x.mean(axis=0)
+    r = np.linalg.norm(x - c, axis=1)
+    order = np.argsort(r)[::-1]
+    best = float(np.max(np.linalg.norm(x - x[order[0]], axis=1)))   # lower bound from the outermost bead
+    # A pair (i, j) can only exceed `best` if r_i + r_j > best (triangle inequality through c).
+    cand = x[r + r.max() > best] if best > 0 else x
+    for s in range(0, len(cand), chunk):
+        blk = cand[s:s + chunk]
+        d2 = np.sum((blk[:, None, :] - cand[None, :, :]) ** 2, axis=-1)
+        best = max(best, float(np.sqrt(d2.max())))
+    return best
+
+
+@dataclass(frozen=True)
+class GyrationShape:
+    eigenvalues: tuple[float, float, float]   # λ1 >= λ2 >= λ3 of the gyration tensor (nm²); Σλ = R_g²
+    asphericity: float                         # (λ1 - (λ2+λ3)/2) / R_g², 0 = sphere, 1 = rod
+    anisotropy: float                          # relative shape anisotropy κ² in [0, 1]
+
+
+def gyration_shape(x: np.ndarray) -> GyrationShape:
+    """Principal moments of the gyration tensor S = (1/N) Σ (x_i - x_cm)(x_i - x_cm)^T."""
+    x = np.asarray(x, dtype=np.float64)
+    d = x - x.mean(axis=0)
+    lam = np.sort(np.linalg.eigvalsh(d.T @ d / max(len(x), 1)))[::-1]
+    tr = float(lam.sum())
+    if tr <= 0:
+        return GyrationShape((0.0, 0.0, 0.0), float("nan"), float("nan"))
+    b = float(lam[0] - 0.5 * (lam[1] + lam[2]))
+    kappa2 = 1.0 - 3.0 * float(lam[0] * lam[1] + lam[1] * lam[2] + lam[0] * lam[2]) / tr ** 2
+    return GyrationShape(tuple(float(v) for v in lam), b / tr, kappa2)
+
+
+def local_density(x: np.ndarray, r: float, min_sep: int = 2) -> np.ndarray:
+    """Per-bead count of non-bonded beads (|i-j| >= min_sep) within distance r (cell list, O(N))."""
+    i, j, _ = neighbor_pairs(x, r, min_sep=min_sep)
+    n = len(x)
+    return (np.bincount(i, minlength=n) + np.bincount(j, minlength=n)).astype(np.float64)

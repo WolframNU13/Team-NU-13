@@ -153,12 +153,14 @@ _STAIN_GC = {"gneg": 0.49, "gpos25": 0.445, "gpos50": 0.415, "gpos75": 0.40, "gp
              "acen": 0.39, "gvar": 0.42, "stalk": 0.55}
 
 
-def synthetic_tracks(n: int = genome.N_BINS, seed: int = 7) -> dict[str, np.ndarray]:
+def synthetic_tracks(chrom: genome.Chrom | None = None, seed: int = 7) -> dict[str, np.ndarray]:
     """GC fraction and H3K27ac mean signal per bin; NaN in unassembled (N) bins."""
+    chrom = chrom or genome.DEFAULT
+    n = chrom.n_bins
     rng = np.random.default_rng(seed + 1)
-    valid = genome.assembled_mask(n)
-    band = genome.band_for_bins(n)
-    base = np.array([_STAIN_GC[genome.CYTOBANDS[b].stain] for b in band])
+    valid = chrom.assembled_mask()
+    band = chrom.band_for_bins()
+    base = np.array([_STAIN_GC.get(chrom.bands[b].stain, 0.42) for b in band])
     iso = _gaussian_smooth_rows(rng.normal(size=(n, 1)), 15.0)[:, 0]
     gc = np.clip(base + 0.02 * iso / max(iso.std(), 1e-9) + rng.normal(0, 0.008, n), 0.30, 0.68)
 
@@ -168,7 +170,7 @@ def synthetic_tracks(n: int = genome.N_BINS, seed: int = 7) -> dict[str, np.ndar
     peaks = rng.random(n) < rate
     kernel = np.array([0.25, 0.6, 1.0, 0.6, 0.25])
     epi += np.convolve(peaks * rng.lognormal(1.3, 0.55, n), kernel, mode="same")
-    rich = np.flatnonzero(valid & (gc > np.nanpercentile(gc[valid], 85)))
+    rich = np.flatnonzero(valid & (gc > np.nanpercentile(gc[valid], 85))) if valid.any() else np.empty(0, int)
     for c in rng.choice(rich, size=min(8, rich.size), replace=False):   # super-enhancer-like hubs
         epi += rng.uniform(5, 9) * np.exp(-0.5 * ((np.arange(n) - c) / rng.uniform(2.5, 6)) ** 2)
 
@@ -211,10 +213,14 @@ class SyntheticChromosome:
     meta: dict = field(default_factory=dict)
 
 
-def build(n: int = genome.N_BINS, seed: int = 7, b0: float = physics.B0_NM) -> SyntheticChromosome:
-    x = fractal_globule(n, b0=b0, seed=seed)
-    tr = synthetic_tracks(n, seed=seed)
+def build(chrom: genome.Chrom | None = None, seed: int = 7, b0: float | None = None) -> SyntheticChromosome:
+    """Planted reference chromosome: structure, tracks and contacts (b0 defaults to the bead scale)."""
+    chrom = chrom or genome.DEFAULT
+    b0 = b0 or physics.bond_length_for(chrom.resolution)
+    x = fractal_globule(chrom.n_bins, b0=b0, seed=seed)
+    tr = synthetic_tracks(chrom, seed=seed)
     ci, cj, cm = simulate_contacts(x, tr["valid"], b0=b0, seed=seed)
     meta = {"generator": "Hilbert fractal globule + band-informed tracks + Poisson contacts",
-            "seed": seed, "b0_nm": b0, "alpha": physics.ALPHA, "depth": 60.0, "r_cut_b0": 2.5}
+            "chrom": chrom.name, "resolution_bp": chrom.resolution, "seed": seed, "b0_nm": b0,
+            "alpha": physics.ALPHA, "depth": 60.0, "r_cut_b0": 2.5}
     return SyntheticChromosome(x, tr["gc"], tr["epi"], tr["valid"], ci, cj, cm, meta)

@@ -1,22 +1,31 @@
 """
-Reference genome constants for human chr22 (GRCh38/hg38) at 10 kb resolution.
+Reference genome model (GRCh38/hg38) for any main human chromosome.
 
-All coordinates are 0-based, half-open [start, end) in base pairs, exactly as served by
-the UCSC Genome Browser REST API (tracks `cytoBand`, `gap`, `centromeres`, hg38, chr22).
+All coordinates are 0-based, half-open [start, end) in base pairs, as served by the UCSC
+Genome Browser REST API (chromosomes, cytoBand, gap, centromeres, ncbiRefSeqSelect).
+The records are stored in `chronocell/data/hg38.json`.
+
+`Chrom` bundles one chromosome with a bin resolution. Resolution defaults to the finest of the
+standard Hi-C resolutions that keeps the chromosome at <= 6,000 beads (chr22 -> 10 kb,
+chr1 -> 50 kb); it can also be inferred from the bead count of an uploaded structure.
+The module-level names (CHROM, N_BINS, bin_start, ...) describe chr22 at 10 kb and are kept
+for backwards compatibility.
 """
 
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
 
 ASSEMBLY = "GRCh38/hg38"
-CHROM = "chr22"
-CHROM_SIZE = 50_818_468          # bp (UCSC chromInfo)
-RESOLUTION = 10_000              # bp per bin / bead
-N_BINS = math.ceil(CHROM_SIZE / RESOLUTION)   # 5,082; the last bin spans 8,468 bp
+RESOLUTIONS = (5_000, 10_000, 20_000, 25_000, 40_000, 50_000, 100_000, 250_000, 500_000, 1_000_000)
+MAX_DEFAULT_BEADS = 6_000
+MAIN_CHROMOSOMES = tuple([f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY"])
 
 
 @dataclass(frozen=True)
@@ -27,97 +36,177 @@ class Band:
     stain: str
 
 
-# UCSC hg38 cytoBand, chr22
-CYTOBANDS: tuple[Band, ...] = (
-    Band(0, 4_300_000, "p13", "gvar"),
-    Band(4_300_000, 9_400_000, "p12", "stalk"),
-    Band(9_400_000, 13_700_000, "p11.2", "gvar"),
-    Band(13_700_000, 15_000_000, "p11.1", "acen"),
-    Band(15_000_000, 17_400_000, "q11.1", "acen"),
-    Band(17_400_000, 21_700_000, "q11.21", "gneg"),
-    Band(21_700_000, 23_100_000, "q11.22", "gpos25"),
-    Band(23_100_000, 25_500_000, "q11.23", "gneg"),
-    Band(25_500_000, 29_200_000, "q12.1", "gpos50"),
-    Band(29_200_000, 31_800_000, "q12.2", "gneg"),
-    Band(31_800_000, 37_200_000, "q12.3", "gpos50"),
-    Band(37_200_000, 40_600_000, "q13.1", "gneg"),
-    Band(40_600_000, 43_800_000, "q13.2", "gpos50"),
-    Band(43_800_000, 48_100_000, "q13.31", "gneg"),
-    Band(48_100_000, 49_100_000, "q13.32", "gpos50"),
-    Band(49_100_000, 50_818_468, "q13.33", "gneg"),
-)
-
-# UCSC hg38 `gap` track, chr22 (all 45 N runs).
-GAPS: tuple[tuple[int, int], ...] = (
-    (0, 10_000), (10_000, 10_510_000),
-    (10_784_643, 10_834_643), (10_874_572, 10_924_572), (10_966_724, 11_016_724),
-    (11_068_987, 11_118_987), (11_160_921, 11_210_921), (11_378_056, 11_428_056),
-    (11_497_337, 11_547_337), (11_631_288, 11_681_288), (11_724_629, 11_774_629),
-    (11_977_555, 12_027_555), (12_225_588, 12_275_588), (12_438_690, 12_488_690),
-    (12_641_730, 12_691_730), (12_726_204, 12_776_204), (12_818_137, 12_868_137),
-    (12_904_788, 12_954_788), (12_977_325, 12_977_425), (12_986_171, 12_994_027),
-    (13_011_653, 13_014_130), (13_021_322, 13_021_422), (13_109_444, 13_109_544),
-    (13_163_677, 13_163_777), (13_227_312, 13_227_412), (13_248_082, 13_248_182),
-    (13_254_852, 13_254_952), (13_258_197, 13_258_297), (13_280_858, 13_280_958),
-    (13_285_143, 13_285_243), (14_419_454, 14_419_554), (14_419_894, 14_419_994),
-    (14_420_334, 14_420_434), (14_421_632, 14_421_732), (15_054_318, 15_154_318),
-    (16_279_672, 16_302_843), (16_304_296, 16_305_427), (16_307_048, 16_307_605),
-    (16_310_302, 16_310_402), (16_313_516, 16_314_010), (18_239_129, 18_339_129),
-    (18_433_513, 18_483_513), (18_659_564, 18_709_564), (49_973_865, 49_975_365),
-    (50_808_468, 50_818_468),
-)
-
-# UCSC hg38 `centromeres` track: modelled alpha-satellite sequence (not N).
-CENTROMERE_MODEL = (12_954_788, 15_054_318)
-ACEN = (13_700_000, 17_400_000)  # p11.1 + q11.1 cytogenetic 'acen' bands
+@dataclass(frozen=True)
+class Gene:
+    name: str
+    chrom: str
+    start: int
+    end: int
+    strand: str
 
 
-def bin_start(i: np.ndarray | int) -> np.ndarray:
-    return np.asarray(i, dtype=np.int64) * RESOLUTION
+@lru_cache(maxsize=1)
+def _data() -> dict:
+    with open(Path(__file__).with_name("data") / "hg38.json", encoding="utf-8") as fh:
+        return json.load(fh)
 
 
-def bin_end(i: np.ndarray | int) -> np.ndarray:
-    return np.minimum((np.asarray(i, dtype=np.int64) + 1) * RESOLUTION, CHROM_SIZE)
+def gene(name: str) -> Gene:
+    g = _data()["genes"][name]
+    return Gene(name, g["chrom"], g["start"], g["end"], g["strand"])
+
+
+def genes_in(chrom_name: str, start: int, end: int) -> list[Gene]:
+    """Annotated anchor genes overlapping [start, end) on chrom_name (sorted by position)."""
+    out = [gene(n) for n, g in _data()["genes"].items()
+           if g["chrom"] == chrom_name and g["start"] < end and g["end"] > start]
+    return sorted(out, key=lambda g: g.start)
+
+
+def chromosome_size(name: str) -> int:
+    return int(_data()["chromosomes"][name]["size"])
+
+
+def default_resolution(name: str) -> int:
+    size = chromosome_size(name)
+    for r in RESOLUTIONS:
+        if math.ceil(size / r) <= MAX_DEFAULT_BEADS:
+            return r
+    return RESOLUTIONS[-1]
+
+
+def resolution_for_beads(name: str, n_beads: int) -> int:
+    """Resolution whose bin count equals `n_beads` (standard values first, else size / n)."""
+    size = chromosome_size(name)
+    for r in RESOLUTIONS:
+        if math.ceil(size / r) == n_beads:
+            return r
+    return max(1, math.ceil(size / max(n_beads, 1)))
+
+
+@dataclass(frozen=True)
+class Chrom:
+    name: str
+    size: int
+    resolution: int
+    bands: tuple[Band, ...]
+    gaps: tuple[tuple[int, int], ...]
+    centromere_model: tuple[int, int] | None
+
+    # ---- bins ---------------------------------------------------------------------------
+    @property
+    def n_bins(self) -> int:
+        return math.ceil(self.size / self.resolution)
+
+    @property
+    def short(self) -> str:
+        return self.name.removeprefix("chr")
+
+    def bin_start(self, i) -> np.ndarray:
+        return np.asarray(i, dtype=np.int64) * self.resolution
+
+    def bin_end(self, i) -> np.ndarray:
+        return np.minimum((np.asarray(i, dtype=np.int64) + 1) * self.resolution, self.size)
+
+    def bin_lengths(self) -> np.ndarray:
+        idx = np.arange(self.n_bins)
+        return (self.bin_end(idx) - self.bin_start(idx)).astype(np.int64)
+
+    def interval_to_bins(self, start: int, end: int) -> tuple[int, int]:
+        """Half-open bp interval -> half-open bin interval covering it (clipped to the chromosome)."""
+        return max(0, start // self.resolution), min(self.n_bins, math.ceil(end / self.resolution))
+
+    def locus(self, i: int) -> str:
+        return f"{self.name}:{int(self.bin_start(i)) + 1:,}-{int(self.bin_end(i)):,}"
+
+    def mb(self, i) -> np.ndarray:
+        return self.bin_start(i) / 1e6
+
+    # ---- annotation ---------------------------------------------------------------------
+    def gap_fraction(self) -> np.ndarray:
+        """Fraction of each bin covered by assembly gaps (N), by exact interval overlap."""
+        n = self.n_bins
+        idx = np.arange(n)
+        starts, ends = self.bin_start(idx), self.bin_end(idx)
+        covered = np.zeros(n, dtype=np.int64)
+        for g0, g1 in self.gaps:
+            b0, b1 = self.interval_to_bins(g0, g1)
+            if b0 >= b1:
+                continue
+            sl = slice(b0, b1)
+            covered[sl] += np.clip(np.minimum(ends[sl], g1) - np.maximum(starts[sl], g0), 0, None)
+        return covered / np.maximum(ends - starts, 1)
+
+    def assembled_mask(self, max_gap: float = 0.5) -> np.ndarray:
+        return self.gap_fraction() <= max_gap
+
+    def band_for_bins(self) -> np.ndarray:
+        idx = np.arange(self.n_bins)
+        mids = (self.bin_start(idx) + self.bin_end(idx)) / 2
+        edges = np.array([b.end for b in self.bands])
+        return np.searchsorted(edges, mids, side="right").clip(0, len(self.bands) - 1)
+
+    @property
+    def acen(self) -> tuple[int, int] | None:
+        spans = [(b.start, b.end) for b in self.bands if b.stain == "acen"]
+        return (min(s for s, _ in spans), max(e for _, e in spans)) if spans else None
+
+    def with_resolution(self, resolution: int) -> "Chrom":
+        return Chrom(self.name, self.size, int(resolution), self.bands, self.gaps, self.centromere_model)
+
+
+@lru_cache(maxsize=64)
+def chrom(name: str = "chr22", resolution: int | None = None) -> Chrom:
+    rec = _data()["chromosomes"][name]
+    bands = tuple(Band(int(s), int(e), n, st) for s, e, n, st in rec["bands"])
+    gaps = tuple((int(s), int(e)) for s, e in rec["gaps"])
+    cen = tuple(rec["centromere_model"]) if rec["centromere_model"] else None
+    return Chrom(name, int(rec["size"]), int(resolution or default_resolution(name)), bands, gaps, cen)
+
+
+def chrom_for_beads(name: str, n_beads: int) -> Chrom:
+    return chrom(name, resolution_for_beads(name, n_beads))
+
+
+# ---- chr22 at 10 kb: backwards-compatible module API --------------------------------------
+DEFAULT = chrom("chr22", 10_000)
+CHROM = DEFAULT.name
+CHROM_SIZE = DEFAULT.size
+RESOLUTION = DEFAULT.resolution
+N_BINS = DEFAULT.n_bins
+CYTOBANDS = DEFAULT.bands
+GAPS = DEFAULT.gaps
+CENTROMERE_MODEL = DEFAULT.centromere_model
+ACEN = DEFAULT.acen
+
+
+def bin_start(i) -> np.ndarray:
+    return DEFAULT.bin_start(i)
+
+
+def bin_end(i) -> np.ndarray:
+    return DEFAULT.bin_end(i)
 
 
 def bin_lengths(n: int = N_BINS) -> np.ndarray:
-    """Base pairs per bin; every bin is 10 kb except the final partial bin (8,468 bp)."""
-    idx = np.arange(n)
-    return (bin_end(idx) - bin_start(idx)).astype(np.int64)
+    return DEFAULT.bin_lengths()[:n]
 
 
 def interval_to_bins(start: int, end: int) -> tuple[int, int]:
-    """Half-open bp interval -> half-open bin interval covering it."""
-    return start // RESOLUTION, math.ceil(end / RESOLUTION)
+    return DEFAULT.interval_to_bins(start, end)
 
 
 def gap_fraction(n: int = N_BINS) -> np.ndarray:
-    """Fraction of each bin covered by assembly gaps (N), computed exactly by interval overlap."""
-    starts = bin_start(np.arange(n)).astype(np.int64)
-    ends = bin_end(np.arange(n)).astype(np.int64)
-    covered = np.zeros(n, dtype=np.int64)
-    for g0, g1 in GAPS:
-        b0, b1 = interval_to_bins(g0, g1)
-        b1 = min(b1, n)
-        if b0 >= b1:
-            continue
-        sl = slice(b0, b1)
-        covered[sl] += np.clip(np.minimum(ends[sl], g1) - np.maximum(starts[sl], g0), 0, None)
-    return covered / (ends - starts)
+    return DEFAULT.gap_fraction()[:n]
 
 
 def assembled_mask(n: int = N_BINS, max_gap: float = 0.5) -> np.ndarray:
-    """True for bins with sequence; bins more than `max_gap` N are unassembled (no data)."""
-    return gap_fraction(n) <= max_gap
+    return DEFAULT.assembled_mask(max_gap)[:n]
 
 
 def band_for_bins(n: int = N_BINS) -> np.ndarray:
-    """Index into CYTOBANDS for the band containing each bin's midpoint."""
-    mids = (bin_start(np.arange(n)) + bin_end(np.arange(n))) / 2
-    edges = np.array([b.end for b in CYTOBANDS])
-    return np.searchsorted(edges, mids, side="right").clip(0, len(CYTOBANDS) - 1)
+    return DEFAULT.band_for_bins()[:n]
 
 
 def locus(i: int) -> str:
-    """UCSC-style 1-based locus string for bin i."""
-    return f"{CHROM}:{int(bin_start(i)) + 1:,}-{int(bin_end(i)):,}"
+    return DEFAULT.locus(i)

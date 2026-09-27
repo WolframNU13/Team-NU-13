@@ -106,6 +106,9 @@ class MessageGraph:
     def to(self, dtype: torch.dtype) -> "MessageGraph":
         return MessageGraph(self.src, self.dst, self.edge_attr.to(dtype), self.inv_deg.to(dtype))
 
+    def to_device(self, device: torch.device) -> "MessageGraph":
+        return MessageGraph(self.src.to(device), self.dst.to(device), self.edge_attr.to(device), self.inv_deg.to(device))
+
 
 def build_message_graph(n: int, ci: np.ndarray, cj: np.ndarray, cm: np.ndarray, k_top: int = 8,
                         dtype: torch.dtype = torch.float32) -> MessageGraph:
@@ -238,6 +241,7 @@ class FitConfig:
     skin: float = 0.5
     grad_clip: float = 5.0
     seed: int = 0
+    device: str = "auto"             # "auto" -> CUDA (e.g. Colab T4) when available, else CPU
 
 
 @dataclass
@@ -249,6 +253,12 @@ class FitResult:
     config: dict = field(default_factory=dict)
 
 
+def resolve_device(name: str = "auto") -> torch.device:
+    if name == "auto":
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    return torch.device(name)
+
+
 def random_walk(n: int, rng: np.random.Generator) -> np.ndarray:
     """Freely-jointed chain with unit bonds: a polymer-shaped, symmetry-neutral starting point."""
     steps = rng.normal(size=(n, 3))
@@ -257,7 +267,8 @@ def random_walk(n: int, rng: np.random.Generator) -> np.ndarray:
     return x - x.mean(axis=0)
 
 
-def shortest_path_mds(n: int, ci: np.ndarray, cj: np.ndarray, target: np.ndarray, max_nodes: int = 1000) -> np.ndarray:
+def shortest_path_mds(n: int, ci: np.ndarray, cj: np.ndarray, target: np.ndarray, max_nodes: int = 1000,
+                      device: torch.device | str = "cpu") -> np.ndarray:
     """Global-fold initialisation from graph distances (ShRec3D; Lesne et al., Nat Methods 2014).
 
     Contact targets (b0 units) and unit backbone bonds define a weighted graph; all-pairs shortest
@@ -271,15 +282,32 @@ def shortest_path_mds(n: int, ci: np.ndarray, cj: np.ndarray, target: np.ndarray
     m = int(np.ceil(n / k))
     a, b = np.asarray(ci) // k, np.asarray(cj) // k
     keep = a != b
-    dist = torch.full((m * m,), float("inf"), dtype=torch.float64)
-    w = torch.as_tensor(np.asarray(target, dtype=np.float64)[keep])
+    dev = torch.device(device)
+    dist = torch.full((m * m,), float("inf"), dtype=torch.float64, device=dev)
+    w = torch.as_tensor(np.asarray(target, dtype=np.float64)[keep], device=dev)
     for u, v in ((a[keep], b[keep]), (b[keep], a[keep])):
-        dist.scatter_reduce_(0, torch.as_tensor(u * m + v), w, reduce="amin")
+        dist.scatter_reduce_(0, torch.as_tensor(u * m + v, device=dev), w, reduce="amin")
+    # Backbone edges, plus a polymer prior only where data are missing: i <-> i+S (S = 2, 4, 8, ...)
+    # at 1.5x the compact-globule distance b0 (S k)^(1/3), for pairs touching a block without any
+    # contact. Without it, contact-free stretches (assembly gaps, unmappable repeats) have shortest
+    # paths that grow linearly along the chain and MDS lays them out as micrometre-long rods; applied
+    # everywhere it would override real contact geometry, so data-rich pairs never get prior edges.
+    degree = np.bincount(np.concatenate([a[keep], b[keep]]), minlength=m)
+    empty_block = degree == 0
+    u = np.arange(m - 1)
+    bb = torch.full((u.size,), float(k), dtype=torch.float64, device=dev)
+    for p_, q_ in ((u, u + 1), (u + 1, u)):
+        dist.scatter_reduce_(0, torch.as_tensor(p_ * m + q_, device=dev), bb, reduce="amin")
+    s_step = 2
+    while s_step < m and empty_block.any():
+        u = np.arange(m - s_step)
+        u = u[empty_block[u] | empty_block[u + s_step]]
+        if u.size:
+            prior = torch.full((u.size,), 1.5 * (s_step * k) ** (1.0 / 3.0), dtype=torch.float64, device=dev)
+            for p_, q_ in ((u, u + s_step), (u + s_step, u)):
+                dist.scatter_reduce_(0, torch.as_tensor(p_ * m + q_, device=dev), prior, reduce="amin")
+        s_step *= 2
     dist = dist.view(m, m)
-    idx = torch.arange(m - 1)
-    bb = torch.minimum(dist[idx, idx + 1], torch.tensor(float(k), dtype=torch.float64))
-    dist[idx, idx + 1] = bb
-    dist[idx + 1, idx] = bb
     dist.fill_diagonal_(0.0)
     for p in range(m):
         torch.minimum(dist, dist[:, p:p + 1] + dist[p:p + 1, :], out=dist)
@@ -288,7 +316,7 @@ def shortest_path_mds(n: int, ci: np.ndarray, cj: np.ndarray, target: np.ndarray
     d2 = dist ** 2
     centred = d2 - d2.mean(0, keepdim=True) - d2.mean(1, keepdim=True) + d2.mean()
     evals, evecs = torch.linalg.eigh(-0.5 * centred)
-    coarse = (evecs[:, -3:] * torch.sqrt(torch.clamp(evals[-3:], min=0.0))).numpy()
+    coarse = (evecs[:, -3:] * torch.sqrt(torch.clamp(evals[-3:], min=0.0))).cpu().numpy()
     if k == 1:
         return coarse
     centres = np.arange(m) * k + (k - 1) / 2
@@ -307,26 +335,31 @@ def fit_structure(n: int, node_feat: np.ndarray, ci: np.ndarray, cj: np.ndarray,
     `progress(stage, epoch, total_epochs, row)` is called once per epoch.
     """
     cfg = cfg or FitConfig()
+    if n < 4:
+        raise ValueError("A reconstruction needs at least 4 beads.")
+    if len(ci) == 0:
+        raise ValueError("This window has no contacts (e.g. an unassembled region); nothing to reconstruct.")
+    dev = resolve_device(cfg.device)
     torch.manual_seed(cfg.seed)
     rng = np.random.default_rng(cfg.seed)
     t0 = time.time()
 
     m_ref = physics.reference_count(ci, cj, cm)
     target = physics.contact_target_distance(cm, m_ref, b0=1.0, alpha=cfg.alpha)
-    ci_t = torch.as_tensor(ci, dtype=torch.long)
-    cj_t = torch.as_tensor(cj, dtype=torch.long)
-    tgt_t = torch.as_tensor(target, dtype=torch.float32)
+    ci_t = torch.as_tensor(ci, dtype=torch.long, device=dev)
+    cj_t = torch.as_tensor(cj, dtype=torch.long, device=dev)
+    tgt_t = torch.as_tensor(target, dtype=torch.float32, device=dev)
     if init_nm is not None:
         x0 = init_nm / b0
     elif cfg.init == "mds":
-        x0 = shortest_path_mds(n, ci, cj, target)
+        x0 = shortest_path_mds(n, ci, cj, target, max_nodes=3000 if dev.type == "cuda" else 1000, device=dev)
     else:
         x0 = random_walk(n, rng)
-    p = nn.Parameter(torch.as_tensor(x0, dtype=torch.float32))
+    p = nn.Parameter(torch.as_tensor(x0, dtype=torch.float32, device=dev))
 
     history: dict[str, list[float]] = {k: [] for k in
                                        ("epoch", "stage", "contact", "smooth", "steric", "total", "grad_norm")}
-    empty = torch.empty(0, dtype=torch.long)
+    empty = torch.empty(0, dtype=torch.long, device=dev)
 
     def run_stage(name: str, epochs: int, forward: Callable[[], torch.Tensor], groups: list[dict],
                   steric_from: int) -> None:
@@ -341,9 +374,9 @@ def fit_structure(n: int, node_feat: np.ndarray, ci: np.ndarray, cj: np.ndarray,
             steric_on = ep >= steric_from
             if steric_on and (ep - steric_from) % cfg.neighbor_every == 0:
                 with torch.no_grad():
-                    cur = forward().detach().numpy().astype(np.float64)
+                    cur = forward().detach().cpu().numpy().astype(np.float64)
                 i_np, j_np, _ = physics.neighbor_pairs(cur, cfg.d_min + cfg.skin, min_sep=2)
-                pi, pj = torch.as_tensor(i_np), torch.as_tensor(j_np)
+                pi, pj = torch.as_tensor(i_np, device=dev), torch.as_tensor(j_np, device=dev)
             opt.zero_grad(set_to_none=True)
             x = forward()
             lc = contact_loss(x, ci_t, cj_t, tgt_t)
@@ -375,9 +408,9 @@ def fit_structure(n: int, node_feat: np.ndarray, ci: np.ndarray, cj: np.ndarray,
         run_stage("refine", cfg.refine_epochs, forward_final,
                   [{"params": [p], "lr": cfg.lr_refine, "weight_decay": 0.0}], steric_from=0)
     elif cfg.refine_epochs > 0:
-        graph = build_message_graph(n, ci, cj, cm, cfg.k_top)
-        feats = torch.as_tensor(node_feat, dtype=torch.float32)
-        model = ChromatinEGNN(node_dim=feats.shape[1], hidden=cfg.hidden, n_layers=cfg.n_layers)
+        graph = build_message_graph(n, ci, cj, cm, cfg.k_top).to_device(dev)
+        feats = torch.as_tensor(node_feat, dtype=torch.float32, device=dev)
+        model = ChromatinEGNN(node_dim=feats.shape[1], hidden=cfg.hidden, n_layers=cfg.n_layers).to(dev)
         n_params = sum(t.numel() for t in model.parameters())
         forward_final = lambda: model(p, feats, graph)[0]
         run_stage("refine", cfg.refine_epochs, forward_final,
@@ -386,8 +419,9 @@ def fit_structure(n: int, node_feat: np.ndarray, ci: np.ndarray, cj: np.ndarray,
                   steric_from=0)
 
     with torch.no_grad():
-        coords = forward_final().detach().numpy().astype(np.float64) * b0
-    return FitResult(coords, history, n_params, time.time() - t0, asdict(cfg) | {"b0_nm": b0, "m_ref": m_ref})
+        coords = forward_final().detach().cpu().numpy().astype(np.float64) * b0
+    return FitResult(coords, history, n_params, time.time() - t0,
+                     asdict(cfg) | {"b0_nm": b0, "m_ref": m_ref, "device_used": str(dev)})
 
 
 # ----------------------------------------------------------------------------------------

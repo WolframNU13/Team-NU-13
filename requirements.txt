@@ -6,3 +6,4 @@ torch>=2.2          # reconstruction + equivariance check; the viewer, physics a
 pytest>=8           # tests only
 # Raw-input graph building only (python -m chronocell.build_graph):
 # pyfaidx, pyBigWig, cooler
+# ChronoAgent online mode uses `requests` (installed with Streamlit); no extra package is needed.

@@ -26,8 +26,12 @@ PDB_WIDTH = 80
 RES_NAME = "GNN"          # residue name agreed in the team specification
 ATOM_NAME = " CA "        # one bead = one Calpha-like pseudo-atom; lets viewers draw a trace
 CHAIN = "A"
-SEGMENT = "CH22"
 ELEMENT = " C"
+
+
+def segment_id(chrom_name: str) -> str:
+    """4-character segID (columns 73-76) for a chromosome, e.g. chr22 -> 'CH22', chrX -> 'CHX '."""
+    return ("CH" + chrom_name.removeprefix("chr"))[:4]
 
 
 def _pad(line: str) -> str:
@@ -36,7 +40,8 @@ def _pad(line: str) -> str:
     return line.ljust(PDB_WIDTH)
 
 
-def atom_record(serial: int, res_seq: int, x: float, y: float, z: float, occ: float, bfac: float) -> str:
+def atom_record(serial: int, res_seq: int, x: float, y: float, z: float, occ: float, bfac: float,
+                segment: str = "CH22") -> str:
     """One ATOM record with every field in its wwPDB column (1-based, inclusive):
 
     1-6 'ATOM  ' | 7-11 serial | 13-16 name | 17 altLoc | 18-20 resName | 22 chainID
@@ -51,7 +56,7 @@ def atom_record(serial: int, res_seq: int, x: float, y: float, z: float, occ: fl
         if not -999.999 <= v <= 9999.999:
             raise ValueError(f"Coordinate {v} does not fit an %8.3f field.")
     line = (f"ATOM  {serial:5d} {ATOM_NAME}{' '}{RES_NAME} {CHAIN}{res_seq:4d}{' '}   "
-            f"{x:8.3f}{y:8.3f}{z:8.3f}{occ:6.2f}{bfac:6.2f}      {SEGMENT:<4s}{ELEMENT:>2s}  ")
+            f"{x:8.3f}{y:8.3f}{z:8.3f}{occ:6.2f}{bfac:6.2f}      {segment:<4s}{ELEMENT:>2s}  ")
     return _pad(line)
 
 
@@ -83,17 +88,40 @@ def epi_to_bfactor(epi: np.ndarray, epi_ref: float) -> np.ndarray:
 
 
 def write_pdb(coords_nm: np.ndarray, start_bin: int, gc: np.ndarray, epi: np.ndarray, epi_ref: float,
-              source: str, method: str) -> tuple[str, PdbFrame]:
-    """PDB text for beads [start_bin, start_bin + N): HEADER, TITLE, REMARK 2/250, CRYST1,
-    ATOM, TER, CONECT (each bead lists its sequence neighbours i-1 and i+1 only), END."""
+              source: str, method: str, chrom: genome.Chrom | None = None, bead_bins: np.ndarray | None = None,
+              segments: np.ndarray | None = None) -> tuple[str, PdbFrame]:
+    """PDB text: HEADER, TITLE, REMARK 2/250, CRYST1, ATOM, TER, CONECT (each bead lists its sequence
+    neighbours i-1 and i+1 only), END.
+
+    By default the beads are bins [start_bin, start_bin + N) of `chrom`. Derived chromosomes
+    (deletions, duplications, fusions) pass `bead_bins` (bin of each bead) and `segments`
+    (segID per bead, e.g. 'CH22' for native beads and 'CH9 ' for a translocation partner);
+    tracks are only read for beads whose segID is the chromosome's own.
+    """
+    chrom = chrom or genome.DEFAULT
     coords_nm = np.asarray(coords_nm, dtype=np.float64)
     n = len(coords_nm)
+    if n > 99_998:
+        raise ValueError("More than 99,998 beads cannot be numbered in PDB columns 7-11.")
+    own = segment_id(chrom.name)
+    idx = np.arange(start_bin, start_bin + n) if bead_bins is None else np.asarray(bead_bins, dtype=np.int64)
+    seg = np.full(n, own) if segments is None else np.asarray(segments)
+    native = (seg == own) & (idx >= 0) & (idx < len(gc))
+    occ = np.zeros(n)
+    bfac = np.zeros(n)
+    occ[native] = np.nan_to_num(np.clip(gc[idx[native]], 0.0, 1.0), nan=0.0)
+    bfac[native] = epi_to_bfactor(epi[idx[native]], epi_ref)
+    if idx.max() + 1 <= 9_999:
+        res_seq, res_note = idx + 1, "RESSEQ = BIN + 1"
+    elif n <= 9_999:
+        res_seq, res_note = np.arange(1, n + 1), "RESSEQ = BEAD ORDER (BIN > 9999)"
+    else:
+        raise ValueError(f"{n:,} beads exceed PDB residue numbering; export a window or a coarser resolution.")
     frame = pdb_frame(coords_nm)
     q = (coords_nm + frame.offset_nm) / frame.unit_nm
-    idx = np.arange(start_bin, start_bin + n)
-    occ = np.nan_to_num(np.clip(gc[idx], 0.0, 1.0), nan=0.0)
-    bfac = epi_to_bfactor(epi[idx], epi_ref)
-    region = f"{genome.CHROM.upper()}:{int(genome.bin_start(start_bin)) + 1}-{int(genome.bin_end(start_bin + n - 1))}"
+    lo_bin, hi_bin = int(idx[native].min()) if native.any() else 0, int(idx[native].max()) if native.any() else 0
+    region = f"{chrom.name.upper()}:{int(chrom.bin_start(lo_bin)) + 1}-{int(chrom.bin_end(hi_bin))}"
+    kb = f"{chrom.resolution / 1000:g}"
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%d-%b-%y").upper()
 
     def remark250(key: str, value: str) -> str:
@@ -101,7 +129,7 @@ def write_pdb(coords_nm: np.ndarray, start_bin: int, gc: np.ndarray, epi: np.nda
 
     lines = [
         _pad(f"HEADER    {'CHROMATIN STRUCTURE':<40s}{stamp:>9s}   CC5D"),
-        _pad("TITLE     CHRONOCELL-5D MODEL OF HUMAN CHROMOSOME 22 (GRCH38) AT 10 KB"),
+        _pad(f"TITLE     CHRONOCELL-5D MODEL OF HUMAN {chrom.name.upper()} (GRCH38) AT {kb} KB"),
         _pad("REMARK   2"),
         _pad("REMARK   2 RESOLUTION. NOT APPLICABLE."),
         _pad("REMARK 250"),
@@ -110,16 +138,16 @@ def write_pdb(coords_nm: np.ndarray, start_bin: int, gc: np.ndarray, epi: np.nda
         remark250("METHOD", method.upper()[:36]),
         remark250("SOURCE", source.upper()[:36]),
         remark250("REGION", region),
-        remark250("BEAD", "ONE CA PER 10 KB BIN, RESSEQ = BIN + 1"),
+        remark250("BEAD", f"ONE CA PER {kb} KB BIN, {res_note}"[:46]),
         remark250("COORDINATE UNIT", f"{frame.unit_nm:g} NM PER FILE UNIT (NOT A)"),
         remark250("ORIGIN OFFSET (NM)", " ".join(f"{v:.3f}" for v in frame.offset_nm)),
-        remark250("OCCUPANCY", "F_GC; 0.00 = UNASSEMBLED (N) BIN"),
+        remark250("OCCUPANCY", "F_GC; 0.00 = UNASSEMBLED OR PARTNER BIN"),
         remark250("B-FACTOR", f"99.99*LN(1+F_EPI)/LN(1+{epi_ref:.3f})"),
         _pad(f"CRYST1{1.0:9.3f}{1.0:9.3f}{1.0:9.3f}{90.0:7.2f}{90.0:7.2f}{90.0:7.2f} {'P 1':<11s}{1:4d}"),
     ]
     for k in range(n):
-        lines.append(atom_record(k + 1, int(idx[k]) + 1, *q[k], float(occ[k]), float(bfac[k])))
-    lines.append(_pad(f"TER   {n + 1:5d}      {RES_NAME} {CHAIN}{int(idx[-1]) + 1:4d}"))
+        lines.append(atom_record(k + 1, int(res_seq[k]), *q[k], float(occ[k]), float(bfac[k]), str(seg[k])))
+    lines.append(_pad(f"TER   {n + 1:5d}      {RES_NAME} {CHAIN}{int(res_seq[-1]):4d}"))
     for k in range(n):
         partners = [s for s in (k, k + 2) if 1 <= s <= n]        # serials of beads i-1 and i+1
         lines.append(_pad("CONECT" + f"{k + 1:5d}" + "".join(f"{s:5d}" for s in partners)))
@@ -127,10 +155,55 @@ def write_pdb(coords_nm: np.ndarray, start_bin: int, gc: np.ndarray, epi: np.nda
     return "\n".join(lines) + "\n", frame
 
 
+def write_pdb_trajectory(frames_nm: np.ndarray, res_seq: np.ndarray, segments: np.ndarray, chrom: genome.Chrom,
+                         title: str, method: str) -> str:
+    """Multi-model PDB (MODEL / ENDMDL per frame, one shared unit/offset), CONECT once after the last model.
+
+    Molecular viewers play the models as a movie, which is the standard way to ship a trajectory
+    in PDB format. Residue numbers that exceed 4 digits fall back to bead order.
+    """
+    frames_nm = np.asarray(frames_nm, dtype=np.float64)
+    t_n, n = frames_nm.shape[:2]
+    if n > 99_998:
+        raise ValueError("More than 99,998 beads cannot be numbered in PDB columns 7-11.")
+    res = np.asarray(res_seq, dtype=np.int64)
+    if res.max() > 9_999:
+        res = np.arange(1, n + 1)
+        if n > 9_999:
+            raise ValueError(f"{n:,} beads exceed PDB residue numbering; export a window or a coarser resolution.")
+    frame = pdb_frame(frames_nm.reshape(-1, 3))
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%d-%b-%y").upper()
+    lines = [
+        _pad(f"HEADER    {'CHROMATIN STRUCTURE':<40s}{stamp:>9s}   CC5D"),
+        _pad(f"TITLE     CHRONOCELL-5D {chrom.name.upper()} 4D: {title.upper()}"[:PDB_WIDTH]),
+        _pad(f"NUMMDL    {t_n:4d}"),
+        _pad("REMARK   2"),
+        _pad("REMARK   2 RESOLUTION. NOT APPLICABLE."),
+        _pad("REMARK 250"),
+        _pad(f"REMARK 250  {'METHOD':<31s}: {method.upper()}"[:PDB_WIDTH]),
+        _pad(f"REMARK 250  {'COORDINATE UNIT':<31s}: {frame.unit_nm:g} NM PER FILE UNIT (NOT A)"),
+        _pad(f"REMARK 250  {'ORIGIN OFFSET (NM)':<31s}: " + " ".join(f"{v:.3f}" for v in frame.offset_nm)),
+        _pad(f"CRYST1{1.0:9.3f}{1.0:9.3f}{1.0:9.3f}{90.0:7.2f}{90.0:7.2f}{90.0:7.2f} {'P 1':<11s}{1:4d}"),
+    ]
+    for t in range(t_n):
+        q = (frames_nm[t] + frame.offset_nm) / frame.unit_nm
+        lines.append(_pad(f"MODEL     {t + 1:4d}"))
+        for k in range(n):
+            lines.append(atom_record(k + 1, int(res[k]), *q[k], 1.0, 0.0, str(segments[k])))
+        lines.append(_pad(f"TER   {n + 1:5d}      {RES_NAME} {CHAIN}{int(res[-1]):4d}"))
+        lines.append(_pad("ENDMDL"))
+    for k in range(n):
+        partners = [s for s in (k, k + 2) if 1 <= s <= n]
+        lines.append(_pad("CONECT" + f"{k + 1:5d}" + "".join(f"{s:5d}" for s in partners)))
+    lines.append(_pad("END"))
+    return "\n".join(lines) + "\n"
+
+
 @dataclass
 class PdbCheck:
     n_atoms: int = 0
     n_conect: int = 0
+    n_models: int = 0
     issues: list[str] = field(default_factory=list)
 
     @property
@@ -147,6 +220,7 @@ def validate_pdb(text: str, max_issues: int = 25) -> PdbCheck:
             chk.issues.append(msg)
 
     serials: list[int] = []
+    model_serials: list[int] = []
     bonds: dict[int, set[int]] = {}
     lines = text.splitlines()
     for ln, line in enumerate(lines, 1):
@@ -171,9 +245,13 @@ def validate_pdb(text: str, max_issues: int = 25) -> PdbCheck:
                 issue(f"line {ln}: atom name / residue name / chain ID empty")
             if line[76:78].strip() == "" or line[76:78] != line[76:78].rjust(2):
                 issue(f"line {ln}: element symbol not right-justified in columns 77-78")
-            if serials and serial != serials[-1] + 1:
+            if model_serials and serial != model_serials[-1] + 1:
                 issue(f"line {ln}: atom serial {serial} not sequential")
+            model_serials.append(serial)
             serials.append(serial)
+        elif rec == "MODEL ":
+            chk.n_models += 1
+            model_serials = []                        # serial numbering restarts in every model
         elif rec == "CONECT":
             chk.n_conect += 1
             fields = [line[a:a + 5] for a in range(6, 31, 5)]
@@ -222,10 +300,12 @@ def read_pdb(text: str) -> tuple[np.ndarray, str | None]:
     return x, None
 
 
-def write_xyz(coords_nm: np.ndarray, start_bin: int) -> str:
+def write_xyz(coords_nm: np.ndarray, start_bin: int, chrom: genome.Chrom | None = None) -> str:
+    chrom = chrom or genome.DEFAULT
     n = len(coords_nm)
-    region = f"{genome.CHROM}:{int(genome.bin_start(start_bin)) + 1}-{int(genome.bin_end(start_bin + n - 1))}"
-    head = [str(n), f"ChronoCell-5D {region} 10kb beads units=nm first_bin={start_bin}"]
+    last = min(start_bin + n - 1, chrom.n_bins - 1)
+    region = f"{chrom.name}:{int(chrom.bin_start(start_bin)) + 1}-{int(chrom.bin_end(last))}"
+    head = [str(n), f"ChronoCell-5D {region} {chrom.resolution / 1000:g}kb beads units=nm first_bin={start_bin}"]
     return "\n".join(head + [f"C {x:12.4f} {y:12.4f} {z:12.4f}" for x, y, z in coords_nm]) + "\n"
 
 
@@ -397,9 +477,155 @@ def read_graph(data: bytes, name: str, trusted: bool = False) -> GraphData:
 
 
 def write_graph_npz(path: str, gc: np.ndarray, epi: np.ndarray, valid: np.ndarray,
-                    ci: np.ndarray, cj: np.ndarray, cm: np.ndarray) -> None:
+                    ci: np.ndarray, cj: np.ndarray, cm: np.ndarray, chrom: str = genome.CHROM,
+                    resolution: int = genome.RESOLUTION) -> None:
     np.savez_compressed(path, gc=gc, epi=epi, valid=valid, ci=ci, cj=cj, cm=cm,
-                        chrom=np.array(genome.CHROM), resolution=np.array(genome.RESOLUTION))
+                        chrom=np.array(chrom), resolution=np.array(resolution))
+
+
+# ----------------------------------------------------------------------------------------
+# Structure bundle: the hand-off format between Colab (GPU) and the workstation
+# ----------------------------------------------------------------------------------------
+@dataclass
+class StructureBundle:
+    """One chromosome, one condition, T >= 1 frames (the 4th dimension: time or state).
+
+    frames      (T, N, 3) float, nanometres
+    times       (T,) float, in `time_unit` (hours, days, pseudotime, relaxation steps, ...)
+    labels      T frame labels, e.g. ["G1", "S", "G2/M"] or ["0 h", "24 h"]
+    Optional per-bin tracks (gc, epi, valid) and contacts (ci, cj, cm) of the same chromosome.
+    """
+    chrom: str
+    resolution: int
+    frames: np.ndarray
+    times: np.ndarray
+    labels: list[str]
+    condition: str = "reference"
+    source: str = ""
+    time_unit: str = "frame"
+    start_bin: int = 0
+    gc: np.ndarray | None = None
+    epi: np.ndarray | None = None
+    valid: np.ndarray | None = None
+    ci: np.ndarray | None = None
+    cj: np.ndarray | None = None
+    cm: np.ndarray | None = None
+
+    @property
+    def n_frames(self) -> int:
+        return self.frames.shape[0]
+
+    @property
+    def n_beads(self) -> int:
+        return self.frames.shape[1]
+
+    def validate(self) -> None:
+        if self.frames.ndim != 3 or self.frames.shape[2] != 3:
+            raise ValueError(f"frames must be (T, N, 3); got {self.frames.shape}.")
+        if self.n_beads < 4:
+            raise ValueError("A structure needs at least 4 beads.")
+        if not np.all(np.isfinite(self.frames)):
+            raise ValueError("frames contain NaN or infinite values.")
+        if len(self.times) != self.n_frames or len(self.labels) != self.n_frames:
+            raise ValueError("times and labels must have one entry per frame.")
+        if self.chrom not in genome.MAIN_CHROMOSOMES:
+            raise ValueError(f"Unknown chromosome '{self.chrom}'; expected one of chr1..chr22, chrX, chrY.")
+        n_bins = genome.chrom(self.chrom, self.resolution).n_bins
+        if self.start_bin < 0 or self.start_bin + self.n_beads > n_bins:
+            raise ValueError(f"Bins {self.start_bin}..{self.start_bin + self.n_beads - 1} fall outside "
+                             f"{self.chrom} at {self.resolution:,} bp ({n_bins:,} bins).")
+
+
+def write_bundle(path_or_buffer, b: StructureBundle) -> None:
+    b.validate()
+    arrays = dict(frames=b.frames.astype(np.float32), times=np.asarray(b.times, float),
+                  labels=np.array(b.labels), chrom=np.array(b.chrom), resolution=np.array(b.resolution),
+                  condition=np.array(b.condition), source=np.array(b.source), time_unit=np.array(b.time_unit),
+                  units_nm=np.array(1.0), start_bin=np.array(b.start_bin), format=np.array("chronocell-bundle-1"))
+    for k in ("gc", "epi", "valid", "ci", "cj", "cm"):
+        v = getattr(b, k)
+        if v is not None:
+            arrays[k] = v
+    np.savez_compressed(path_or_buffer, **arrays)
+
+
+def region_hint(data: bytes, ext: str) -> tuple[str, int, int] | None:
+    """(chrom, start_bin, resolution) from a ChronoCell PDB REMARK 250 or XYZ comment line."""
+    head = data[:4000].decode("utf-8", "replace")
+    if ext == ".pdb":
+        reg = re.search(r"REMARK 250  REGION\s*:\s*CHR(\w+):(\d+)-(\d+)", head)
+        kb = re.search(r"ONE CA PER ([0-9.]+) KB", head)
+        if reg and kb:
+            res = int(round(float(kb.group(1)) * 1000))
+            return f"chr{reg.group(1)}", (int(reg.group(2)) - 1) // res, res
+    if ext == ".xyz":
+        m = re.search(r"(chr\w+):(\d+)-(\d+) ([0-9.]+)kb .*first_bin=(\d+)", head)
+        if m:
+            return m.group(1), int(m.group(5)), int(round(float(m.group(4)) * 1000))
+    return None
+
+
+def _scalar(z, key, default):
+    return z[key].item() if key in z else default
+
+
+def read_bundle(data: bytes, name: str, chrom_hint: str = genome.CHROM, trusted: bool = False,
+                unit: str = "Auto", b0: float | None = None) -> tuple[StructureBundle, list[str]]:
+    """Any supported coordinate file -> StructureBundle (+ notes about conversions applied).
+
+    Bundle .npz files carry chromosome, resolution and units. Single-structure files (.pdb,
+    .xyz, .npy, .csv, .pt, plain .npz) become a one-frame bundle for `chrom_hint`; the
+    resolution is inferred from the bead count, and unknown units are calibrated to b0.
+    """
+    from . import physics
+
+    notes: list[str] = []
+    ext = os.path.splitext(name.lower())[1]
+    z = dict(np.load(io.BytesIO(data), allow_pickle=False)) if ext == ".npz" else {}
+    if "frames" in z:
+        frames = np.asarray(z["frames"], dtype=np.float64)
+        if frames.ndim == 2:
+            frames = frames[None]
+        chrom_name = str(_scalar(z, "chrom", chrom_hint))
+        t = frames.shape[0]
+        b = StructureBundle(
+            chrom=chrom_name,
+            resolution=int(_scalar(z, "resolution", genome.resolution_for_beads(chrom_name, frames.shape[1]))),
+            frames=frames * float(_scalar(z, "units_nm", 1.0)),
+            times=np.asarray(z.get("times", np.arange(t)), float),
+            labels=[str(v) for v in z.get("labels", [f"t{k}" for k in range(t)])],
+            condition=str(_scalar(z, "condition", "uploaded")), source=str(_scalar(z, "source", name)),
+            time_unit=str(_scalar(z, "time_unit", "frame")), start_bin=int(_scalar(z, "start_bin", 0)),
+            **{k: z[k] for k in ("gc", "epi", "valid", "ci", "cj", "cm") if k in z})
+        declared = "nm"
+    else:
+        coords, declared = read_structure(data, name, trusted=trusted)
+        hint = region_hint(data, ext)
+        if hint:
+            chrom_name, start_bin, res = hint
+            notes.append(f"Region read from file header: {chrom_name}, bin {start_bin:,}, {res:,} bp.")
+        else:
+            chrom_name, start_bin, res = chrom_hint, 0, genome.resolution_for_beads(chrom_hint, len(coords))
+        b = StructureBundle(chrom=chrom_name, resolution=res, frames=coords[None].astype(np.float64),
+                            times=np.zeros(1), labels=["t0"], condition="uploaded", source=name, start_bin=start_bin)
+    b.validate()
+    if not (unit == "nm" or (unit == "Auto" and declared == "nm")):
+        if unit == "Å":
+            b.frames = b.frames / 10.0
+        elif unit == "µm":
+            b.frames = b.frames * 1000.0
+        else:
+            b0 = b0 or physics.bond_length_for(b.resolution)
+            med = float(np.median(np.linalg.norm(np.diff(b.frames[0], axis=0), axis=1)))
+            if med <= 0:
+                raise ValueError("Cannot calibrate units: median bond length is zero.")
+            b.frames = b.frames * (b0 / med)
+            notes.append(f"Unknown coordinate unit: rescaled ×{b0 / med:.4g} so the median bond equals b₀ = {b0:.0f} nm.")
+    n_expected = genome.chrom(b.chrom, b.resolution).n_bins
+    if b.n_beads != n_expected:
+        notes.append(f"Window of {b.n_beads:,} beads: bins {b.start_bin:,}–{b.start_bin + b.n_beads - 1:,} of "
+                     f"{n_expected:,} ({b.chrom} at {b.resolution:,} bp).")
+    return b, notes
 
 
 def report_json(payload: dict) -> str:

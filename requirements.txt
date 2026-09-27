@@ -1,0 +1,8 @@
+streamlit>=1.50
+plotly>=6.0
+numpy>=1.26
+pandas>=2.0
+torch>=2.2          # reconstruction + equivariance check; the viewer, physics and export run without it
+pytest>=8           # tests only
+# Raw-input graph building only (python -m chronocell.build_graph):
+# pyfaidx, pyBigWig, cooler

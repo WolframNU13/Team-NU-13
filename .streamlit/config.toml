@@ -1,0 +1,24 @@
+[theme]
+base = "light"
+primaryColor = "#3340D1"
+backgroundColor = "#F2F2EF"
+secondaryBackgroundColor = "#E9E9E5"
+textColor = "#1C1E1B"
+linkColor = "#3340D1"
+borderColor = "#D8D8D3"
+dataframeBorderColor = "#D8D8D3"
+showWidgetBorder = true
+baseRadius = "6px"
+buttonRadius = "999px"
+baseFontSize = 14
+font = "Inter Tight, Inter, system-ui, sans-serif"
+headingFont = "Inter Tight, Inter, system-ui, sans-serif"
+codeFont = "IBM Plex Mono, ui-monospace, monospace"
+codeBackgroundColor = "#F8F8F6"
+
+[server]
+maxUploadSize = 512
+runOnSave = true
+
+[browser]
+gatherUsageStats = false

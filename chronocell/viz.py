@@ -441,3 +441,138 @@ def displacement_profile(position_mb: np.ndarray, disp_nm: np.ndarray, kind: np.
                                       xaxis=dict(title="Bead along the (rearranged) chain"),
                                       yaxis=dict(title="Displacement (nm)")))
     return fig
+
+
+# ----------------------------------------------------------------------------------------
+# v3.2: Compare, Genes, Neighbourhoods and Drug lab figures
+# ----------------------------------------------------------------------------------------
+ACCESS_SCALE = [[0.0, "#1F35C8"], [0.5, "#B9B9B3"], [1.0, T.TERRACOTTA]]
+DIFF_SCALE = [[0.0, "#D9DCF2"], [0.35, "#9AA2E6"], [0.7, T.TERRACOTTA], [1.0, "#6E2408"]]
+
+
+def fibre_figure(x: np.ndarray, values: np.ndarray, colorscale: list, hover: list[str], *, height: int = 560,
+                 cmin: float | None = None, cmax: float | None = None, markers: list[dict] | None = None,
+                 uirevision: str = "fibre", line_px: int = 5, bead_px: int = 3, valid: np.ndarray | None = None
+                 ) -> go.Figure:
+    """Light 3D fibre (lines + beads) with optional labelled markers (genes, anchors)."""
+    v = np.asarray(values, float)
+    lo = float(np.nanmin(v)) if cmin is None else cmin
+    hi = float(np.nanmax(v)) if cmax is None else cmax
+    if not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
+        lo, hi = 0.0, 1.0
+    v = np.where(np.isfinite(v), v, lo)
+    fig = go.Figure(go.Scatter3d(
+        x=x[:, 0], y=x[:, 1], z=x[:, 2], mode="lines+markers", text=hover, hovertemplate="%{text}<extra></extra>",
+        line=dict(width=line_px, color=v, colorscale=colorscale, cmin=lo, cmax=hi),
+        marker=dict(size=bead_px, color=v, colorscale=colorscale, cmin=lo, cmax=hi, line=dict(width=0)),
+        showlegend=False))
+    if valid is not None and (~np.asarray(valid, bool)).any():
+        gx = np.where(np.asarray(valid, bool)[:, None], np.nan, x)
+        fig.add_trace(go.Scatter3d(x=gx[:, 0], y=gx[:, 1], z=gx[:, 2], mode="lines", hoverinfo="skip",
+                                   line=dict(width=line_px, color=T.GHOST), showlegend=False))
+    for m in markers or []:
+        fig.add_trace(go.Scatter3d(
+            x=[m["x"][0]], y=[m["x"][1]], z=[m["x"][2]], mode="markers+text", text=[m["label"]],
+            textposition="top center", textfont=dict(family=T.SANS, size=m.get("font", 11), color=m.get("text", T.INK)),
+            marker=dict(size=m.get("size", 7), color=m.get("color", T.INK), symbol=m.get("symbol", "circle"),
+                        line=dict(width=1, color="#FFFFFF")),
+            hovertemplate=m.get("hover", m["label"]) + "<extra></extra>", showlegend=False))
+    hidden = dict(visible=False, showbackground=False, showspikes=False)
+    fig.update_layout(height=height, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="rgba(0,0,0,0)",
+                      uirevision=uirevision, showlegend=False,
+                      hoverlabel=dict(bgcolor=T.PAPER_RAISED, bordercolor=T.RULE_STRONG, align="left",
+                                      font=dict(family=T.MONO, size=12, color=T.INK)),
+                      scene=dict(xaxis=hidden, yaxis=hidden, zaxis=hidden, aspectmode="data", bgcolor="rgba(0,0,0,0)",
+                                 camera=_camera(CAMERAS["Iso"]), dragmode="turntable"))
+    return fig
+
+
+def domains_chart(pos_mb: np.ndarray, insulation: np.ndarray, boundaries_mb: list[float], compartment: np.ndarray,
+                  height: int = 300) -> go.Figure:
+    """Insulation score with TAD boundaries (top) and the A/B compartment eigenvector (bottom)."""
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1, row_heights=[0.55, 0.45])
+    fig.add_trace(go.Scatter(x=pos_mb, y=insulation, mode="lines", line=dict(color=T.INK_2, width=1.3),
+                             hovertemplate="%{x:.2f} Mb<br>insulation %{y:.2f}<extra></extra>"), row=1, col=1)
+    if boundaries_mb:
+        yb = np.interp(boundaries_mb, pos_mb, np.nan_to_num(insulation, nan=0.0))
+        fig.add_trace(go.Scatter(x=boundaries_mb, y=yb, mode="markers", marker=dict(size=6, color=T.ACCENT),
+                                 hovertemplate="boundary %{x:.2f} Mb<extra></extra>"), row=1, col=1)
+    ev = np.nan_to_num(compartment, nan=0.0)
+    fig.add_trace(go.Bar(x=pos_mb, y=ev, marker=dict(color=np.where(ev >= 0, T.TERRACOTTA, "#2438C9"), line=dict(width=0)),
+                         hovertemplate="%{x:.2f} Mb<br>eigenvector %{y:.3f}<extra></extra>"), row=2, col=1)
+    lay = T.plot_layout(height, margin=dict(l=56, r=12, t=8, b=40), bargap=0)
+    fig.update_layout(**{k: v for k, v in lay.items() if k not in ("xaxis", "yaxis")})
+    fig.update_xaxes(**lay["xaxis"])
+    fig.update_yaxes(**lay["yaxis"])
+    fig.update_yaxes(title_text="Insulation", row=1, col=1)
+    fig.update_yaxes(title_text="A (+) / B (-)", row=2, col=1)
+    fig.update_xaxes(title_text="Position (Mb)", row=2, col=1)
+    return fig
+
+
+def difference_profile(pos_mb: np.ndarray, diff_nm: np.ndarray, peaks_mb: list[float], height: int = 230) -> go.Figure:
+    fig = go.Figure(go.Scatter(x=pos_mb, y=diff_nm, mode="lines", line=dict(color=T.TERRACOTTA, width=1.4),
+                               fill="tozeroy", fillcolor="rgba(194,74,30,0.12)",
+                               hovertemplate="%{x:.2f} Mb<br>%{y:,.0f} nm apart<extra></extra>"))
+    if peaks_mb:
+        yp = np.interp(peaks_mb, pos_mb, diff_nm)
+        fig.add_trace(go.Scatter(x=peaks_mb, y=yp, mode="markers", marker=dict(size=8, color=T.INK),
+                                 hovertemplate="%{x:.2f} Mb<extra></extra>"))
+    fig.update_layout(**T.plot_layout(height, margin=dict(l=56, r=12, t=8, b=40),
+                                      xaxis=dict(title="Position (Mb)"), yaxis=dict(title="Distance apart (nm)")))
+    return fig
+
+
+def dose_response_chart(table, baseline: dict | None, height: int = 420) -> go.Figure:
+    """Restoration, R_g and the P(s) slope (-gamma) against dose; dashed lines = healthy baseline."""
+    has_rest = "restoration_pct" in table.columns
+    rows = [("Restoration (%)", "restoration_pct")] if has_rest else []
+    rows += [("R<sub>g</sub> (nm)", "rg_nm"), ("P(s) slope (-γ)", "slope")]
+    t = table.copy()
+    t["slope"] = -t["gamma"]
+    fig = make_subplots(rows=len(rows), cols=1, shared_xaxes=True, vertical_spacing=0.07)
+    for r, (label, col) in enumerate(rows, start=1):
+        fig.add_trace(go.Scatter(x=t["dose_pct"], y=t[col], mode="lines+markers", line=dict(color=T.ACCENT, width=1.8),
+                                 marker=dict(size=5), hovertemplate="dose %{x}%<br>" + label + " %{y:,.3g}<extra></extra>"),
+                      row=r, col=1)
+        if baseline and col in ("rg_nm", "slope"):
+            yb = baseline["rg_nm"] if col == "rg_nm" else -baseline["gamma"]
+            if np.isfinite(yb):
+                fig.add_hline(y=yb, line=dict(color=T.TERRACOTTA, dash="dash", width=1.2), row=r, col=1,
+                              annotation_text="healthy", annotation_position="top right",
+                              annotation_font=dict(size=10, color=T.TERRACOTTA_TEXT))
+        fig.update_yaxes(title_text=label, row=r, col=1)
+    lay = T.plot_layout(height, margin=dict(l=64, r=12, t=8, b=40))
+    fig.update_layout(**{k: v for k, v in lay.items() if k not in ("xaxis", "yaxis")})
+    fig.update_xaxes(**lay["xaxis"])
+    fig.update_yaxes(**lay["yaxis"])
+    fig.update_xaxes(title_text="Dose (% of maximum)", row=len(rows), col=1)
+    return fig
+
+
+def drug_bar_chart(df, height: int = 200) -> go.Figure:
+    d = df.sort_values("restoration_pct")
+    best = d["restoration_pct"].max()
+    fig = go.Figure(go.Bar(x=d["restoration_pct"], y=d["drug"], orientation="h",
+                           marker=dict(color=[T.ACCENT if v == best else T.RULE_STRONG for v in d["restoration_pct"]]),
+                           hovertemplate="%{y}<br>%{x:.1f}% restored at full dose<extra></extra>"))
+    fig.update_layout(**T.plot_layout(height, margin=dict(l=190, r=12, t=6, b=40),
+                                      xaxis=dict(title="Fold restored toward healthy at full dose (%)"), yaxis=dict(title="")))
+    return fig
+
+
+def expression_scatter(tab, height: int = 300) -> go.Figure:
+    colors = {"Hyper-accessible (predicted active)": T.TERRACOTTA, "Intermediate": T.RULE_STRONG,
+              "Buried (predicted silenced)": "#2438C9"}
+    d = tab.dropna(subset=["expression", "score"])
+    fig = go.Figure()
+    for status, col in colors.items():
+        s = d[d["status"] == status]
+        fig.add_trace(go.Scatter(x=s["score"], y=np.log1p(np.clip(s["expression"], 0, None)), mode="markers",
+                                 name=status.split(" (")[0], marker=dict(size=6, color=col, opacity=0.85),
+                                 text=s["gene"], hovertemplate="%{text}<br>score %{x:.2f}<br>log(1+expr) %{y:.2f}<extra></extra>"))
+    fig.update_layout(**T.plot_layout(height, margin=dict(l=56, r=12, t=8, b=40), showlegend=True,
+                                      legend=dict(orientation="h", y=1.08, x=0, font=dict(size=11)),
+                                      xaxis=dict(title="Predicted accessibility score"),
+                                      yaxis=dict(title="Measured expression, log(1 + value)")))
+    return fig

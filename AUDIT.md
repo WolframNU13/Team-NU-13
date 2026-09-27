@@ -2,6 +2,8 @@
 
 **v3 note.** Errors fixed in v3 (custom-window crash, empty-window fit, etc.) are listed in APP_GUIDE.md §1.
 
+**v3.2 note.** New pages (Compare, Drug lab, Genes, Guide), neighbourhoods, patient-data formats, PDF dossier and the fixes found while building them are in APP_GUIDE.md §15–19. JUDGES_GUIDE.md explains the project in plain language.
+
 **v3.1 note.** APP_GUIDE.md §1 lists the v3.1 fixes: the stale-module `MAIN_CHROMOSOMES` crash, the unreachable sidebar, silently dropped files, graph failures masking structures, and tracks mistaken for structures. §12–14 cover the biological-state engine, ChronoAgent and the dashboard.
 
 **Scope.** The team specification's code blocks (Teammate 1 graph assembly, Teammate 2 EGNN training, Teammate 3 export) from *AI-Powered Codon Optimization for Vaccines.pdf* (both versions), and the v1 Streamlit app (kept for reference at `legacy/app_v1.py`).

@@ -3,7 +3,10 @@ plotly>=6.0
 numpy>=1.26
 pandas>=2.0
 torch>=2.2          # reconstruction + equivariance check; the viewer, physics and export run without it
+fpdf2>=2.7          # PDF research dossier
+h5py>=3.9           # patient .cool / .mcool contact maps
 pytest>=8           # tests only
 # Raw-input graph building only (python -m chronocell.build_graph):
 # pyfaidx, pyBigWig, cooler
 # ChronoAgent online mode uses `requests` (installed with Streamlit); no extra package is needed.
+# Optional: pyBigWig (bigWig tracks), hic-straw (.hic contact maps).

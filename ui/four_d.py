@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from chronocell import formats, genome, scenarios as SC, theme as T, viz
+from chronocell import formats, genome, scenarios as SC, snapshot as SN, theme as T, viz
 from ui.common import Dataset, banner, clamp_window, fmt, html, readout
 
 OPERATIONS = ("deletion", "duplication", "inversion", "translocation")
@@ -24,7 +24,7 @@ KIND_SCALE = [[0.0, T.INK_2], [0.249, T.INK_2], [0.25, T.OCHRE], [0.499, T.OCHRE
 DISP_SCALE = [[0.0, "#D9DCF2"], [0.35, "#9AA2E6"], [0.7, T.TERRACOTTA], [1.0, "#6E2408"]]
 
 
-@st.cache_data(show_spinner="Simulating the structural variant…", max_entries=16)
+@st.cache_resource(show_spinner="Simulating the structural variant…", max_entries=16)
 def _simulate(ds_key: str, _ds: Dataset, frame: int, operation: str, params: tuple, b0: float,
               title: str, description: str, n_frames: int, sweeps: int) -> SC.Trajectory:
     x = _ds.frames[frame]
@@ -199,6 +199,22 @@ def render(ds: Dataset, conditions: list[Dataset], b0: float, frame: int) -> Non
                                width="stretch", icon=":material/download:")
             c1.download_button("Metrics (CSV)", table.to_csv(index=False, float_format="%.3f"), f"{stem}_metrics.csv",
                                "text/csv", width="stretch", icon=":material/download:")
+            gif_key = f"gif:{ds.key}:{traj.title}:{traj.n_frames}"
+            have = st.session_state.get("fourd_gif", (None,))[0] == gif_key
+            if not have and c2.button("Build animated GIF", width="stretch", icon=":material/animation:",
+                                      key="fourd_gif_build", help="A slowly spinning animation of all frames, for slides."):
+                with st.spinner("Rendering frames…"):
+                    if traj.simulated:
+                        vals = np.stack([SN.normalise(d) for d in m["disp"]])
+                        stops = DISP_SCALE
+                    else:
+                        vals = SN.normalise(np.arange(traj.frames.shape[1], dtype=float))
+                        stops = T.SCALES["Genomic position"]
+                    st.session_state.fourd_gif = (gif_key, SN.gif(traj.frames, vals, stops, list(traj.labels), spin=3.0))
+                have = True
+            if have:
+                c2.download_button("Animated GIF", st.session_state.fourd_gif[1], f"{stem}.gif", "image/gif",
+                                   width="stretch", icon=":material/animation:", key="fourd_gif_dl")
 
     # ---- title + stage ----------------------------------------------------------------------
     with head_l:

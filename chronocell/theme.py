@@ -45,6 +45,9 @@ SCALES: dict[str, list[str]] = {
     "Residue Index Spectrum": ["#3A2FB5", "#1F74D1", "#1E9A8A", "#4E9A2E", OCHRE, "#D0561F", "#C2223A"],
     # Epigenomic heat map: low signal blue -> high signal red / magenta.
     "Epigenomic Signal Heatmap": ["#1F35C8", "#2A8FC4", OCHRE, "#D8342B", "#B0138F"],
+    # Neighbourhoods: B (inactive) blue -> A (active) terracotta; TADs alternate two colours.
+    "A/B compartment": ["#2438C9", "#8E8E88", TERRACOTTA],
+    "TAD domains": [ACCENT, OCHRE],
 }
 DISTANCE_SCALE = [[0.0, "#1A2175"], [0.2, ACCENT], [0.5, "#9AA2E6"], [0.8, "#DDE0F2"], [1.0, PAPER_RAISED]]
 CONTACT_SCALE = [[0.0, PAPER_RAISED], [0.25, "#EBC9B5"], [0.55, "#D9744A"], [0.8, "#A8380F"], [1.0, "#4A1705"]]
@@ -199,6 +202,31 @@ section[data-testid="stSidebar"] .block-container, section[data-testid="stSideba
 [class*="st-key-agent_out"] strong {{ color: var(--ink); font-weight: 600; }}
 .cc-banner ul {{ margin: 4px 0 0 18px; padding: 0; }}
 .cc-banner li {{ font-size: 12.5px; }}
+
+/* ---- workspace navigation + plain-language purpose line --------------------------- */
+.st-key-seg_workspace {{ border-bottom: 1px solid var(--rule); padding-bottom: 2px; margin-top: 4px; }}
+.st-key-seg_workspace button p {{ font: 500 14.5px/1.3 var(--sans) !important; }}
+.cc-purpose {{ font: 400 13.5px/1.5 var(--sans); color: var(--ink-2); margin: 6px 0 0; }}
+.cc-purpose::before {{ content: "What this page does: "; color: var(--muted); }}
+
+/* ---- guide page ------------------------------------------------------------------- */
+.cc-lead {{ font: 400 18px/1.55 var(--sans); color: var(--ink); max-width: 880px; margin: 6px 0 18px; }}
+.cc-analogy {{ border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; margin: 8px 0 12px;
+  font: 400 14px/1.55 var(--sans); color: #1F2A7A; border-radius: 0 6px 6px 0; }}
+.cc-analogy b {{ color: #141c5c; }}
+.cc-steps {{ counter-reset: step; list-style: none; padding: 0; margin: 0 0 12px; }}
+.cc-steps li {{ counter-increment: step; position: relative; padding: 8px 0 8px 40px; border-bottom: 1px solid var(--rule);
+  font: 400 14px/1.5 var(--sans); color: var(--ink-2); }}
+.cc-steps li::before {{ content: counter(step, decimal-leading-zero); position: absolute; left: 0; top: 8px;
+  font: 500 13px/1.5 var(--mono); color: var(--accent); }}
+.cc-steps li b {{ color: var(--ink); }}
+.cc-gloss {{ display: grid; grid-template-columns: 190px 1fr; gap: 0; margin: 4px 0 14px; }}
+.cc-gloss dt {{ font: 600 13.5px/1.5 var(--sans); color: var(--ink); padding: 7px 12px 7px 0; border-bottom: 1px solid var(--rule); }}
+.cc-gloss dd {{ font: 400 13.5px/1.5 var(--sans); color: var(--ink-2); margin: 0; padding: 7px 0; border-bottom: 1px solid var(--rule); }}
+.cc-callout {{ border: 1px solid var(--rule); background: var(--paper-raised); border-radius: 6px; padding: 12px 16px; margin: 6px 0 12px;
+  font: 400 13.5px/1.55 var(--sans); color: var(--ink-2); }}
+.cc-callout h4 {{ font: 600 14px/1.4 var(--sans); color: var(--ink); margin: 0 0 4px; padding: 0; }}
+.cc-h2 {{ font: 500 24px/1.2 var(--sans); letter-spacing: -0.02em; color: var(--ink); margin: 22px 0 8px; }}
 
 /* ---- widgets ---------------------------------------------------------------------- */
 .stDownloadButton button, .stButton button {{ font: 500 13px/1 var(--sans) !important; }}

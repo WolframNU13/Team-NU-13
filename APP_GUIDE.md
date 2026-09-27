@@ -1,4 +1,4 @@
-# ChronoCell-5D v3.1 — complete application guide
+# ChronoCell-5D v3.2 — complete application guide
 
 ChronoCell-5D is a workstation for the 3D and 4D structure of human chromosomes (GRCh38). It reconstructs spatial coordinates from Micro-C contacts, H3K27ac and DNA sequence, analyses them with polymer physics, plays them over time or disease state, and exports standard files.
 
@@ -7,9 +7,17 @@ It runs locally with Streamlit. Heavy reconstruction runs on a Google Colab T4 G
 ```bash
 pip install -r requirements.txt
 streamlit run app.py              # opens http://localhost:8501
-python -m pytest                  # 83 tests
+python -m pytest                  # 101 tests
 python -m chronocell.demo_states demo_states   # optional: synthetic Healthy / Disease / Senescent files to try the states
 ```
+
+**New in v3.2** (added without removing anything; details in §15–19):
+- **Six pages:** 01 3D structure · 02 4D dynamics · **03 Compare** (two states, linked cameras) · **04 Drug lab** (virtual epigenetic drugs, real-time dose slider) · **05 Genes** (19,386 genes, predicted active/silenced, RNA-seq check) · **06 Guide** (plain language).
+- **Neighbourhoods:** TADs, A/B compartments, loops and contact decay, as a 05 inspector panel and two new colour modes.
+- **Patient data:** `.bed`, `.bedGraph`, `.bigWig` tracks; `.cool`, `.mcool`, `.hic` and text contact maps; RNA-seq tables.
+- **Exports:** PDF research dossier (with 3D snapshots), animated GIF for 4D, PNG camera button, side-by-side image.
+- **Demo patients** switch, **API key from `.streamlit/secrets.toml`**, and a reference model cached to disk (fast start).
+- A plain-language line under every page title. For judges: **JUDGES_GUIDE.md**.
 
 **New in v3.1** (added without removing anything):
 - A **Biological state** selector (Healthy Control, Disease State / Cancer, Senescent State) backed by a format-based data engine: files are recognised by content, not by fixed names (§12).
@@ -34,6 +42,11 @@ Contents:
 12. [Biological states: the format-based data engine](#12-biological-states-the-format-based-data-engine)
 13. [ChronoAgent: structural genomics interpreter](#13-chronoagent-structural-genomics-interpreter)
 14. [Metric dashboard, colour modes and exports](#14-metric-dashboard-colour-modes-and-exports)
+15. [v3.2: Compare](#15-v32-compare)
+16. [v3.2: Drug lab](#16-v32-drug-lab)
+17. [v3.2: Genes and multi-omics](#17-v32-genes-and-multi-omics)
+18. [v3.2: Neighbourhoods, patient data, exports, API key](#18-v32-neighbourhoods-patient-data-exports-api-key)
+19. [v3.2: errors found and fixed](#19-v32-errors-found-and-fixed)
 
 ---
 
@@ -99,7 +112,19 @@ chronocell/                    numerics — never imports Streamlit
 colab/ChronoCell5D_Colab.ipynb Colab notebook (T4 GPU)
 colab/pack_code.py             zips chronocell/ for upload -> colab/chronocell_code.zip
 coordinates/                   THE SLOT: put coordinates here (see §4)
-tests/                         83 tests (pytest); test_v31.py covers v3.1 incl. an end-to-end AppTest
+tests/                         101 tests (pytest); test_v31.py / test_v32.py include end-to-end AppTests of every page
+chronocell/genes.py            gene annotation (RefSeq Select), 3D accessibility, RNA-seq agreement      (v3.2)
+chronocell/domains.py          TADs (insulation), A/B compartments, loops, contact decay                 (v3.2)
+chronocell/therapy.py          drug lab: drug classes, targeting, dose simulation, ranking                (v3.2)
+chronocell/ingest.py           BED / bedGraph / bigWig tracks; cool / mcool / hic / text contact maps      (v3.2)
+chronocell/snapshot.py         Pillow 3D snapshots (PNG) and animations (GIF)                             (v3.2)
+chronocell/pdf_report.py       PDF research dossier (fpdf2)                                              (v3.2)
+chronocell/data/genes_hg38.json.gz  19,386 genes, UCSC hg38 ncbiRefSeqSelect                              (v3.2)
+ui/compare.py, ui/sync_view.py Compare page; linked-camera dual viewport                                 (v3.2)
+ui/drug_lab.py, ui/genes_view.py, ui/guide.py   Drug lab, Genes and Guide pages                          (v3.2)
+static/                        plotly.js served locally for the linked viewports (auto-created)          (v3.2)
+.chronocell_cache/             reference-model and demo-patient cache (auto-created, git-ignored)        (v3.2)
+JUDGES_GUIDE.md                the whole project in plain language with analogies                        (v3.2)
 AUDIT.md                       v1 audit and benchmark; APP_GUIDE.md = this file
 legacy/app_v1.py               original app, kept for reference
 .streamlit/config.toml         theme (light paper / ink / cobalt), upload limit 512 MB
@@ -597,3 +622,119 @@ The panel **🤖 ChronoAgent: Structural Genomics Interpreter** sits below the 3
   - **Structure (.pdb) · current state**: the structure in view, wwPDB, with the same REMARK 250 locus records as 04 Export, so it re-imports onto the right bins.
   - **Report (ChronoCell_Analysis_Report.md)**: sample table (state, locus, provenance), structural metrics, the other states, your question, the full analysis (LLM or offline, labelled), method notes and the disclaimer.
 - The 04 Export expander (PDB/XYZ/bundle/JSON/CSV) is unchanged.
+
+---
+
+## 15. v3.2: Compare
+
+**Purpose:** two structures side by side, with linked cameras, and what changed between them.
+
+- **Left / Right:** any loaded structure (the reference model, every uploaded, slot or state file). The defaults are Healthy Control on the left and the current state on the right.
+- **Superposition:** the right structure is Kabsch-aligned onto the left one over their shared bins. Reflection is allowed, because contact data fix a fold only up to its mirror image; the page says when the mirror was used. The same camera then shows the same region of both.
+- **Linked cameras** (`ui/sync_view.py`):
+  - Both figures are drawn by plotly.js in one `st.iframe`. On every `plotly_relayouting` / `plotly_relayout` event, `scene.camera` is copied to the other view, throttled to animation frames.
+  - plotly.js is served from `static/` (static serving is enabled in `.streamlit/config.toml`), so it works offline. It falls back to the public CDN if static serving is off (e.g. a server started before the setting existed).
+  - This was verified in a browser: rotating one view sets the other's camera exactly.
+- **Colour:**
+  - *Difference between the two*: per-bead distance after superposition, pale → dark red.
+  - Genomic position.
+  - Each side's own signal on a shared scale.
+- **Region:** whole shared region, the most different 800 beads, or a custom Mb range.
+- **Numbers:** R_g, span, ν, packing, crowded beads, mean signal, contact decay γ and TAD count, each with the change and a plain meaning.
+- **Where they differ most:** a smoothed difference profile, the top 5 loci, and the genes at each.
+- **Download:** a side-by-side PNG.
+
+## 16. v3.2: Drug lab
+
+**Model** (`chronocell/therapy.py`): a mechanism sandbox, not pharmacology. Each drug class = *where it acts* + *which way it pushes*.
+
+| Drug class | Target (per-bead weight) | Direction |
+|---|---|---|
+| EZH2 / EED inhibitor | crowded **and** low-signal beads (Polycomb-like) | open (+1) |
+| HDAC inhibitor | low-signal beads (least acetylated) | open (+1) |
+| BET bromodomain inhibitor | top-quartile signal hubs, broadened (super-enhancer-like) | compact (−1) |
+| CTCF / cohesin loop stabiliser | loop anchors ± 2 beads (measured loops, else the longest-range 3D contacts) | pull anchors together (0) |
+
+- Signal percentiles are ranked against the **whole chromosome** (the healthy track when available), so a region-wide gain is visible.
+- **With a healthy baseline** (same beads): targeted beads move `dose × max-effect × weight` of the way to their healthy positions. This happens *only where that agrees with the drug's direction* (crowding gate): an opening drug never compacts.
+- **Restoration** = `100 × (1 − RMSD(treated, healthy) / RMSD(untreated, healthy))`.
+- **Without a baseline:** fold-scale moves about ±30-bead centres, in 4 rounds with relaxation in between.
+- Every conformation is relaxed (bond lengths → b₀, excluded volume) so it stays a valid polymer.
+- Doses 0, 10, …, 100 % are pre-computed, so the **dose slider under the 3D view** animates instantly in the browser.
+- **Outputs:** cards for restoration at full dose, R_g untreated → treated vs healthy, P(s) slope (−γ) vs healthy, and the share of beads reached. Also dose–response curves, a ranking of all drug classes ("which mechanism fits this fold"), and a CSV.
+- The best-matching drug is pre-selected and marked ★. A drug pushing the wrong way explains why it does nothing.
+- **Validated behaviour** (tests):
+  - Demo tumour (over-open, hyper-acetylated): BET restores > 10 % while HDAC and EZH2 restore < 2 %.
+  - Demo senescent (over-compact): HDAC > 5 %, BET < 2 %.
+  - Restoration rises with dose; bonds stay ≈ b₀.
+- **Limits:** there are no pharmacokinetics, no cell-type specificity and no measured drug data. The page and dossier say so.
+
+## 17. v3.2: Genes and multi-omics
+
+**Data:** 19,386 genes, one RefSeq Select / MANE transcript per gene (UCSC REST API, hg38 `ncbiRefSeqSelect`), stored in `chronocell/data/genes_hg38.json.gz`.
+
+**Accessibility** (`chronocell/genes.py`), at each gene's promoter bead (TSS), relative to the region shown:
+- openness = −z(crowding), where crowding = non-bonded beads within 1.5 b₀, smoothed ± 2 beads;
+- activity = z(log(1 + signal)), skipped when the signal is a placeholder;
+- score = the mean of the two.
+- Status: ≥ +0.5 **hyper-accessible (predicted active)**; ≤ −0.5 **buried (predicted silenced)**; otherwise intermediate.
+- Curated flags: cancer genes (~100 well-established drivers and suppressors) and neuro-disease genes (Parkinson's, Alzheimer's, ALS, Huntington's, 22q11.2).
+
+**The page:**
+- **Gene search** covering every gene on the loaded structure.
+- A **3D view** coloured buried (blue) → open (terracotta), with labels for disease genes, the most open and most buried genes, and the chosen gene (◆).
+- **Touches in 3D:** genes whose promoters lie within 2 b₀ of the chosen one, with how far apart they are along the DNA.
+- A filterable **table** with CSV download.
+- **RNA-seq** (upload, or a state's expression file): measured values next to predictions, a scatter plot, and the Spearman ρ between accessibility and log expression, the honest test of the prediction.
+
+## 18. v3.2: Neighbourhoods, patient data, exports, API key
+
+**Neighbourhoods** (`chronocell/domains.py`):
+- They work from measured contacts, or from **3D proximity** (beads closer than 1.5 b₀) when a structure has no contacts.
+- **Insulation score:** a difference array in O(C + N), window ≈ 500 kb.
+- **Boundaries:** minima deeper than 0.15 log2.
+- **Compartments:** the first eigenvector of the O/E Pearson map on ≤ 500 coarse bins, oriented by GC / signal.
+- **Candidate loops:** O/E ≥ 3, count ≥ max(p90, 5), 5 beads to 2 Mb, with non-maximum suppression; measured contacts only.
+- **Contact decay γ.**
+- **Where it appears:** the 3D inspector (05 Neighbourhoods), the colour modes *A/B compartment* and *TAD domains*, ChronoAgent and the dossier.
+- On the reference model, boundaries from contacts and from 3D proximity agree within about 1 bead (median).
+
+**Patient data** (`chronocell/ingest.py`, recognised by content):
+
+| Kind | Formats |
+|---|---|
+| Tracks | `.npy`; `.bedGraph` / `.bdg` (length-weighted mean per bin); `.bed` (score-weighted coverage; BED3 = coverage); `.bigWig` (optional pyBigWig) |
+| Contact maps | `.cool` / `.mcool` read with h5py (finer resolutions aggregated); `.hic` (optional hic-straw, else hic2cool); text tables with 3 columns (bin bin count), 5 columns (chrom pos chrom pos count) or 6–7 columns (BEDPE) |
+| Expression | two columns: gene, value |
+
+- A state's own contact map becomes that state's graph. The Data menu's "Graph or contact map" accepts contact maps too.
+
+**Exports:**
+- **PDF research dossier** (ChronoAgent panel → *Build PDF dossier*). It contains a 3D snapshot (healthy vs current side by side when available), metrics, a crowding histogram, other states, a gene table, neighbourhoods, the drug-lab result, the full analysis and method notes. "Research use only" appears on page 1 and every footer. It uses a Unicode font where available, with a Latin-1 fallback.
+- **Animated GIF** (4D → 03 Export).
+- A **PNG camera button** on the 3D viewport.
+- A **side-by-side PNG** on Compare.
+- A **Markdown report** and **PDB**, as before.
+
+**API key:**
+- Paste it into the sidebar, **or** copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and set `GEMINI_API_KEY` or `OPENROUTER_API_KEY` (optionally `CHRONOAGENT_MODEL`). Environment variables with the same names also work.
+- The sidebar field always overrides the stored key.
+- `secrets.toml` is in `.gitignore`.
+
+**Demo patients:**
+- The sidebar switch writes synthetic Healthy / Disease / Senescent chr22 files into `.chronocell_cache/demo_states/`, once. Your `coordinates/` folder is never touched.
+- The files are labelled `demo/…` everywhere.
+
+**Fast start:** the reference model is cached in `.chronocell_cache/`. The cache is keyed by the generator's code, so a code change rebuilds it.
+
+## 19. v3.2: errors found and fixed
+
+| # | Symptom | Cause | Fix |
+|---|---|---|---|
+| 18 | Deprecation warning on every Compare render ("replace `st.components.v1.html` with `st.iframe`", removal date passed) | Old component API | `st.iframe` (with a fallback for older Streamlit) |
+| 19 | "Cannot serialize the return value (TreatmentResult)" right after a code reload | `st.cache_data` pickles results; an object from a reloaded module no longer matched its class | Caches that return project objects (treatment, metrics, domains, window physics, 4D simulation, folder scan) use `st.cache_resource` (no pickling) |
+| 20 | RNA-seq tables rejected ("no gene-name column") | pandas 3 gives text columns a string dtype, not `object` | Gene column = first non-numeric column |
+| 21 | A 3-column BED was read as an expression table | Classifier required ≥ 4 columns for tracks | BED3+ recognised as a track |
+| 22 | PDF / GIF buttons failed outside a fragment rerun | `st.rerun(scope="fragment")` called during a full run | Build-then-download in the same run |
+| 23 | A header-less 3-column float CSV could be mistaken for contacts | Ambiguous column structure | Contacts need non-negative integer bins; float triples stay coordinates |
+| 24 | Drug lab opened on a drug with no effect on the demo tumour (0 %) | First drug in the list by default | The best-matching mechanism is pre-selected and marked ★; a wrong-direction drug explains itself |

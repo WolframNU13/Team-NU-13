@@ -1,28 +1,9 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-*.egg-info/
-dist/
-build/
-.eggs/
-
-# Virtual environments
-venv/
-.env/
-.venv/
-
-# IDE
-.vscode/
-.idea/
-
-# Claude/Gemini config
-.claude/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Streamlit
+# secrets: your own API keys live here and must never be committed
 .streamlit/secrets.toml
+# caches and generated files
+.chronocell_cache/
+static/plotly-*.min.js
+__pycache__/
+*.pyc
+demo_states/
+colab/chronocell_code.zip

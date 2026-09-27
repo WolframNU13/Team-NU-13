@@ -10,8 +10,11 @@ heuristic answer with a warning card. The key lives only in this browser session
 from __future__ import annotations
 
 import math
+import os
 import re
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
 
 import numpy as np
 import streamlit as st
@@ -40,6 +43,35 @@ class AgentSettings:
 # ======================================================================================
 # Sidebar
 # ======================================================================================
+KEY_NAMES = {"GEMINI_API_KEY": A.GEMINI, "OPENROUTER_API_KEY": A.OPENROUTER, "CHRONOAGENT_API_KEY": None}
+
+
+def _has_secrets_file() -> bool:
+    return any(p.exists() for p in (Path.cwd() / ".streamlit" / "secrets.toml",
+                                    Path(__file__).resolve().parent.parent / ".streamlit" / "secrets.toml",
+                                    Path.home() / ".streamlit" / "secrets.toml"))
+
+
+def _secret(name: str) -> str:
+    if _has_secrets_file():
+        try:
+            v = st.secrets.get(name)
+            if v:
+                return str(v).strip()
+        except Exception:  # malformed secrets.toml: fall back to the environment
+            pass
+    return (os.environ.get(name) or "").strip()
+
+
+def stored_key() -> tuple[str, str | None, str]:
+    """(key, provider or None, where it came from) from .streamlit/secrets.toml or the environment."""
+    for name, provider in KEY_NAMES.items():
+        v = _secret(name)
+        if v:
+            return v, provider or A.detect_provider(v), name
+    return "", None, ""
+
+
 def sidebar_settings() -> AgentSettings:
     with st.sidebar:
         html('<p class="cc-side-title">ChronoAgent</p>')
@@ -55,6 +87,13 @@ def sidebar_settings() -> AgentSettings:
         key = (key or "").strip()
         provider = A.detect_provider(key) if choice == AUTO else choice
         if not key:
+            s_key, s_provider, s_name = stored_key()
+            if s_key:
+                key, provider = s_key, (s_provider if choice == AUTO else choice)
+                model = model or _secret("CHRONOAGENT_MODEL")
+                html(f'<p class="cc-note">Using your key from <code>{"secrets.toml" if _has_secrets_file() else "the environment"}</code> '
+                     f'({esc(s_name)}). Type a key above to override it.</p>')
+        if not key:
             note = "Offline heuristic engine (no key)."
         elif provider is None:
             note = "Key format not recognised: choose the provider above. Using the offline engine until then."
@@ -67,7 +106,7 @@ def sidebar_settings() -> AgentSettings:
 # ======================================================================================
 # Metrics (cached on the coordinates and signal)
 # ======================================================================================
-@st.cache_data(show_spinner=False, max_entries=96)
+@st.cache_resource(show_spinner=False, max_entries=96)
 def metrics_for(coords: np.ndarray, signal: np.ndarray, valid: np.ndarray, b0: float, chrom_name: str,
                 resolution: int, first_bin: int, label: str, placeholder: bool) -> A.Metrics:
     return A.compute_metrics(coords, signal, valid, b0, genome.chrom(chrom_name, resolution), first_bin, label,
@@ -96,7 +135,8 @@ def comparisons_for(ds: Dataset, lo: int, hi: int, b0: float, others: dict[str, 
 
 
 def build_context(ds: Dataset, coords: np.ndarray, lo: int, hi: int, b0: float, region: str, state: str,
-                  state_has_data: bool, reconstruction: bool, others: dict[str, Dataset]) -> A.AgentContext:
+                  state_has_data: bool, reconstruction: bool, others: dict[str, Dataset],
+                  extras: dict | None = None) -> A.AgentContext:
     ch = ds.chrom
     g_lo, g_hi = ds.bin0 + lo, ds.bin0 + hi
     start, end = int(ch.bin_start(g_lo)), int(ch.bin_end(g_hi - 1))
@@ -106,7 +146,8 @@ def build_context(ds: Dataset, coords: np.ndarray, lo: int, hi: int, b0: float, 
         is_reference=ds.is_reference, reconstruction=reconstruction, b0=float(b0),
         metrics=dataset_metrics(ds, coords, lo, hi, b0),
         genes=tuple(g.name for g in genome.genes_in(ch.name, start, end)),
-        comparisons=comparisons_for(ds, lo, hi, b0, {s: d for s, d in others.items() if s != state}))
+        comparisons=comparisons_for(ds, lo, hi, b0, {s: d for s, d in others.items() if s != state}),
+        extras=extras or {})
 
 
 # ======================================================================================
@@ -165,8 +206,10 @@ def _safe_markdown(text: str) -> str:
 
 
 @st.fragment
-def render(ctx: A.AgentContext, settings: AgentSettings, pdb: tuple[str, str] | None, scope: str) -> None:
+def render(ctx: A.AgentContext, settings: AgentSettings, pdb: tuple[str, str] | None, scope: str,
+           dossier: Callable[[str, str, str], bytes] | None = None) -> None:
     ss.setdefault("agent_results", {})
+    ss.setdefault("agent_dossiers", {})
     with st.expander(TITLE, expanded=True), st.container(key=f"agent_{scope}"):
         fp = ctx.fingerprint()
         engine_tag = (f'<span class="cc-tag accent">{esc(settings.provider)}</span>' if settings.online
@@ -197,10 +240,25 @@ def render(ctx: A.AgentContext, settings: AgentSettings, pdb: tuple[str, str] | 
         with st.container(key=f"agent_out_{scope}"):
             st.markdown(text)
         report = A.report_markdown(ctx, text, engine, query)
-        c1, c2, _ = st.columns([1, 1, 1.4])
+        c1, c2, c3 = st.columns(3)
         c1.download_button("Report (ChronoCell_Analysis_Report.md)", report, "ChronoCell_Analysis_Report.md",
                            "text/markdown", width="stretch", icon=":material/download:", key=f"agent_md_{scope}")
         if pdb is not None:
             c2.download_button("Structure (.pdb) · current state", pdb[0], pdb[1], "chemical/x-pdb", width="stretch",
                                icon=":material/download:", key=f"agent_pdb_{scope}")
+        if dossier is not None:
+            dkey = (fp, query, engine)
+            if dkey not in ss.agent_dossiers and c3.button(
+                    "Build PDF dossier", width="stretch", icon=":material/picture_as_pdf:", key=f"agent_build_{scope}",
+                    help="3D snapshot(s), metrics, genes, neighbourhoods, drug-lab result and this analysis in one PDF "
+                         "(research use only)."):
+                with st.spinner("Rendering the dossier…"):
+                    try:
+                        ss.agent_dossiers = {dkey: dossier(text, engine, query)}   # keep only the latest
+                    except Exception as exc:
+                        warning_card("The PDF could not be built", str(exc))
+            if dkey in ss.agent_dossiers:
+                c3.download_button("Research dossier (PDF)", ss.agent_dossiers[dkey], "ChronoCell_Research_Dossier.pdf",
+                                   "application/pdf", width="stretch", icon=":material/picture_as_pdf:",
+                                   key=f"agent_pdf_{scope}")
         html(f'<p class="cc-note">Engine: {esc(engine)}. {esc(A.DISCLAIMER)}</p>')

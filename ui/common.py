@@ -27,10 +27,11 @@ from pathlib import Path
 import numpy as np
 import streamlit as st
 
-from chronocell import formats, genome, physics, states, synthetic
+from chronocell import formats, genome, ingest, physics, states, synthetic
 
 # The coordinate slot; CHRONOCELL_COORDINATES points it at another folder (e.g. a Colab download).
 SLOT_ROOT = Path(os.environ.get("CHRONOCELL_COORDINATES") or Path(__file__).resolve().parent.parent / "coordinates")
+CACHE_DIR = Path(__file__).resolve().parent.parent / ".chronocell_cache"
 COORD_TYPES = ("npz", "pdb", "xyz", "npy", "csv", "pt", "pth")
 MIN_WINDOW = 10
 
@@ -120,14 +121,43 @@ def digest(*parts) -> str:
     return h.hexdigest()[:16]
 
 
-@st.cache_resource(show_spinner="Building the reference chromosome…")
+def _code_tag() -> str:
+    """Changes whenever the generator code changes, so a stale disk cache is never reused."""
+    root = Path(synthetic.__file__).parent
+    return digest(*(Path(root / f).read_bytes() for f in ("synthetic.py", "physics.py", "genome.py")))[:10]
+
+
+@st.cache_resource(show_spinner="Building the reference chromosome (first time only)…")
 def reference_chromosome(chrom_name: str, resolution: int, seed: int, b0: float) -> synthetic.SyntheticChromosome:
-    return synthetic.build(genome.chrom(chrom_name, resolution), seed=seed, b0=b0)
+    """The planted reference model; built once, then read from .chronocell_cache/ on later starts."""
+    path = CACHE_DIR / f"reference_{chrom_name}_{resolution}_{seed}_{b0:.4f}_{_code_tag()}.npz"
+    fields = ("coords", "gc", "epi", "valid", "ci", "cj", "cm")
+    if path.exists():
+        try:
+            z = np.load(path, allow_pickle=False)
+            return synthetic.SyntheticChromosome(*(z[f] for f in fields),
+                                                 meta={"chrom": chrom_name, "resolution_bp": resolution, "seed": seed,
+                                                       "b0_nm": b0, "cached": True})
+        except Exception:  # a damaged cache file is rebuilt
+            pass
+    ref = synthetic.build(genome.chrom(chrom_name, resolution), seed=seed, b0=b0)
+    try:
+        CACHE_DIR.mkdir(exist_ok=True)
+        tmp = path.with_suffix(".tmp.npz")
+        np.savez(tmp, **{f: getattr(ref, f) for f in fields})
+        os.replace(tmp, path)
+    except OSError:  # read-only deployments simply rebuild
+        pass
+    return ref
 
 
 def _is_track_file(p: Path) -> bool:
-    """1-D .npy arrays are signal tracks, not coordinates (read from the header only)."""
-    return p.suffix.lower() == ".npy" and states.sniff(p.name, path=p)[0] == states.TRACK
+    """Files that are not structures: 1-D .npy signal tracks (header only), and CSV tables that are
+    contact lists, bedGraphs or expression tables (by column structure)."""
+    ext = p.suffix.lower()
+    if ext not in (".npy", ".csv"):
+        return False
+    return states.sniff(p.name, path=p)[0] in (states.TRACK, states.CONTACTS, states.EXPRESSION)
 
 
 def slot_files(chrom_name: str) -> list[Path]:
@@ -201,7 +231,15 @@ def load_dataset(chrom_name: str, seed: int, b0: float | None, source: tuple, un
     gc = epi = valid = None
     ci = cj = cm = np.empty(0)
     t_label, placeholder = "", False
-    if graph is not None:
+    contacts_from_graph = False
+    if graph is not None and ingest.is_contact_file(graph[1], graph[2][:200_000]):
+        # a contact map (.cool / .mcool / .hic / contact table): contacts only; tracks come from elsewhere
+        g_label, g_name, g_bytes = graph
+        fci, fcj, fcm, gnotes = ingest.read_contacts(g_bytes, g_name, ch)
+        ci, cj, cm = _window_contacts(fci, fcj, fcm, bin0, n, full=True)
+        contacts_from_graph = True
+        notes.append(f"{g_name}: {len(ci):,} contacts in view ({'; '.join(gnotes)}).")
+    elif graph is not None:
         g_label, g_name, g_bytes = graph
         gd = formats.read_graph(g_bytes, g_name, trusted=trusted)
         gc, epi = _window_tracks(gd.gc, n_full, bin0, n), _window_tracks(gd.epi, n_full, bin0, n)
@@ -215,18 +253,22 @@ def load_dataset(chrom_name: str, seed: int, b0: float | None, source: tuple, un
     if gc is None and bundle is not None and bundle.gc is not None:
         gc, epi = _window_tracks(bundle.gc, n_full, bin0, n), _window_tracks(bundle.epi, n_full, bin0, n)
         valid = _window_tracks(bundle.valid.astype(float), n_full, bin0, n) if bundle.valid is not None else None
-        if bundle.ci is not None:
+        if bundle.ci is not None and not contacts_from_graph:
             ci, cj, cm = _window_contacts(bundle.ci, bundle.cj, bundle.cm, bin0, n,
                                           full=bundle.gc is not None and len(bundle.gc) == n_full)
         t_label = "tracks embedded in the coordinate file"
     if gc is None:
         ref = reference_chromosome(ch.name, ch.resolution, seed, b0 or physics.bond_length_for(ch.resolution))
         gc, epi, valid = ref.gc[bin0:bin0 + n], ref.epi[bin0:bin0 + n], ref.valid[bin0:bin0 + n].astype(float)
-        if source is None:
+        if source is None and not contacts_from_graph:
             ci, cj, cm, t_label = ref.ci, ref.cj, ref.cm, "Reference tracks & simulated Micro-C contacts"
+        elif source is None:
+            t_label = "Reference tracks"
         else:
             placeholder = True
-            t_label = "Placeholder tracks (reference) · no contacts — provide a graph"
+            t_label = "Placeholder tracks (reference)" + ("" if contacts_from_graph else " · no contacts — provide a graph")
+    if contacts_from_graph:
+        t_label = f"{t_label} · contacts from {graph[0]}"
     if valid is None:
         valid = np.isfinite(gc).astype(float)
     valid = np.asarray(valid) > 0.5
@@ -236,7 +278,7 @@ def load_dataset(chrom_name: str, seed: int, b0: float | None, source: tuple, un
     if track is not None:
         tr_label, tr_name, tr_bytes = track
         try:
-            arr = states.load_track(tr_bytes)
+            arr, _ = ingest.read_track(tr_bytes, tr_name, ch)
             w = _window_tracks(arr, n_full, bin0, n)
             if w is None:
                 notes.append(f"{tr_name}: {len(arr):,} values match neither the {n:,} beads nor {ch.name} at "

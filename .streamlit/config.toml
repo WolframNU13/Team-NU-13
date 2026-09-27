@@ -19,6 +19,7 @@ codeBackgroundColor = "#F8F8F6"
 [server]
 maxUploadSize = 512
 runOnSave = true
+enableStaticServing = true
 
 [browser]
 gatherUsageStats = false

@@ -26,6 +26,11 @@ Accepted coordinate files:
 - Plain `(N, 3)` arrays (`.npy`, `.csv`, `.npz`) and `(T, N, 3)` frame stacks.
 - One-dimensional `.npy` arrays are **signal tracks**, never structures.
 
+Also recognised by content (v3.2):
+- **Tracks:** `.bedGraph`, `.bed`, `.bigWig`.
+- **Contact maps:** `.cool`, `.mcool`, `.hic`, and bin/position text tables. A state's own contact map is used for that state.
+- **RNA-seq tables** (gene, value), used by the Genes page.
+
 Units: bundles declare nanometres. Anything else is calibrated so the median bond equals b₀ (see Data → Coordinate unit).
 
 **Biological states.** A file belongs to *Healthy Control*, *Disease State / Cancer* or *Senescent State* when its name or a folder above it contains a state word:

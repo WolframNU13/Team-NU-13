@@ -1,0 +1,254 @@
+[
+ {
+  "cell_line": "IMR90",
+  "region": "chr21:28-30 Mb",
+  "split": 0,
+  "cells_total": 4832,
+  "segments": 65,
+  "model": {
+   "spearman": 0.8729908881960358,
+   "pearson": 0.8682076758294408,
+   "spearman_distance_corrected": 0.3823700833311597,
+   "lin_ccc_nm": 0.13646161839523044,
+   "median_scale_model_over_real": 0.3320543357184334
+  },
+  "baseline_genomic_distance_only": {
+   "spearman": 0.9293721366736286,
+   "pearson": 0.918690822810283,
+   "spearman_distance_corrected": 0.004008031806576769,
+   "lin_ccc_nm": 0.9040336211756971,
+   "median_scale_model_over_real": 0.9647087272991296
+  },
+  "ceiling_half_A_vs_half_B": {
+   "spearman": 0.9981109741980464,
+   "pearson": 0.9983353942810946,
+   "spearman_distance_corrected": 0.9861551381057124,
+   "lin_ccc_nm": 0.9981878238231948,
+   "median_scale_model_over_real": 0.9941538612354028
+  }
+ },
+ {
+  "cell_line": "IMR90",
+  "region": "chr21:28-30 Mb",
+  "split": 1,
+  "cells_total": 4832,
+  "segments": 65,
+  "model": {
+   "spearman": 0.8523063420108108,
+   "pearson": 0.8453866294461767,
+   "spearman_distance_corrected": 0.35750441693497914,
+   "lin_ccc_nm": 0.13029976124496573,
+   "median_scale_model_over_real": 0.33196669087587233
+  },
+  "baseline_genomic_distance_only": {
+   "spearman": 0.9285622747360576,
+   "pearson": 0.918245928915937,
+   "spearman_distance_corrected": 0.01951266791322606,
+   "lin_ccc_nm": 0.9074145198388797,
+   "median_scale_model_over_real": 0.9748405607821287
+  },
+  "ceiling_half_A_vs_half_B": {
+   "spearman": 0.9976029840059571,
+   "pearson": 0.9979607995086116,
+   "spearman_distance_corrected": 0.9820674173389212,
+   "lin_ccc_nm": 0.9977929946205389,
+   "median_scale_model_over_real": 1.0051151769462519
+  }
+ },
+ {
+  "cell_line": "IMR90",
+  "region": "chr21:28-30 Mb",
+  "split": 2,
+  "cells_total": 4832,
+  "segments": 65,
+  "model": {
+   "spearman": 0.8550922749647693,
+   "pearson": 0.847787520800065,
+   "spearman_distance_corrected": 0.413867451096966,
+   "lin_ccc_nm": 0.1310989847582551,
+   "median_scale_model_over_real": 0.33349547074303676
+  },
+  "baseline_genomic_distance_only": {
+   "spearman": 0.9319062421403348,
+   "pearson": 0.9200281621515033,
+   "spearman_distance_corrected": 0.00924860221277598,
+   "lin_ccc_nm": 0.9019575012519512,
+   "median_scale_model_over_real": 0.9626685941508271
+  },
+  "ceiling_half_A_vs_half_B": {
+   "spearman": 0.9974192434136007,
+   "pearson": 0.9977437646468652,
+   "spearman_distance_corrected": 0.9830024895892066,
+   "lin_ccc_nm": 0.9971144078956689,
+   "median_scale_model_over_real": 0.995148591424025
+  }
+ },
+ {
+  "cell_line": "IMR90",
+  "region": "chr21:18-20 Mb",
+  "split": 0,
+  "cells_total": 1277,
+  "segments": 65,
+  "model": {
+   "spearman": 0.5479557064591072,
+   "pearson": 0.5658147267204517,
+   "spearman_distance_corrected": 0.11765909353607575,
+   "lin_ccc_nm": 0.029426343013426493,
+   "median_scale_model_over_real": 0.2813415636888608
+  },
+  "baseline_genomic_distance_only": {
+   "spearman": 0.9607243313592866,
+   "pearson": 0.9656351963338108,
+   "spearman_distance_corrected": -0.002120228868789929,
+   "lin_ccc_nm": 0.964942877533184,
+   "median_scale_model_over_real": 1.0055274690349183
+  },
+  "ceiling_half_A_vs_half_B": {
+   "spearman": 0.9361847351916189,
+   "pearson": 0.9505541588372222,
+   "spearman_distance_corrected": 0.22892046417995476,
+   "lin_ccc_nm": 0.9496773060524953,
+   "median_scale_model_over_real": 1.0060510758797379
+  }
+ },
+ {
+  "cell_line": "IMR90",
+  "region": "chr21:18-20 Mb",
+  "split": 1,
+  "cells_total": 1277,
+  "segments": 65,
+  "model": {
+   "spearman": 0.5174560909716799,
+   "pearson": 0.5436163718873449,
+   "spearman_distance_corrected": 0.078186597960745,
+   "lin_ccc_nm": 0.0271996069533496,
+   "median_scale_model_over_real": 0.2777920593311676
+  },
+  "baseline_genomic_distance_only": {
+   "spearman": 0.9631945774153388,
+   "pearson": 0.9661003990677158,
+   "spearman_distance_corrected": 0.007829807888506311,
+   "lin_ccc_nm": 0.9655626052795576,
+   "median_scale_model_over_real": 0.9942421303642861
+  },
+  "ceiling_half_A_vs_half_B": {
+   "spearman": 0.9417865786824364,
+   "pearson": 0.9528019680608484,
+   "spearman_distance_corrected": 0.23947749892782927,
+   "lin_ccc_nm": 0.9523029765943661,
+   "median_scale_model_over_real": 0.9952007589802782
+  }
+ },
+ {
+  "cell_line": "IMR90",
+  "region": "chr21:18-20 Mb",
+  "split": 2,
+  "cells_total": 1277,
+  "segments": 65,
+  "model": {
+   "spearman": 0.47588344662148835,
+   "pearson": 0.5160112233431265,
+   "spearman_distance_corrected": 0.06854596895442643,
+   "lin_ccc_nm": 0.026876457950519884,
+   "median_scale_model_over_real": 0.2821035393335709
+  },
+  "baseline_genomic_distance_only": {
+   "spearman": 0.961204032359176,
+   "pearson": 0.9662210522875501,
+   "spearman_distance_corrected": 0.0013238316346580383,
+   "lin_ccc_nm": 0.9660547435499012,
+   "median_scale_model_over_real": 0.9999990822473059
+  },
+  "ceiling_half_A_vs_half_B": {
+   "spearman": 0.9464649349521146,
+   "pearson": 0.9554985527035487,
+   "spearman_distance_corrected": 0.28374581338749943,
+   "lin_ccc_nm": 0.9553773880510186,
+   "median_scale_model_over_real": 1.0027220232779466
+  }
+ },
+ {
+  "cell_line": "A549",
+  "region": "chr21:28-30 Mb",
+  "split": 0,
+  "cells_total": 3941,
+  "segments": 65,
+  "model": {
+   "spearman": 0.8331692760181575,
+   "pearson": 0.8294032042259031,
+   "spearman_distance_corrected": 0.5128210203862629,
+   "lin_ccc_nm": 0.1233058355673984,
+   "median_scale_model_over_real": 0.33984474294304623
+  },
+  "baseline_genomic_distance_only": {
+   "spearman": 0.9194975177799865,
+   "pearson": 0.9288189462061152,
+   "spearman_distance_corrected": -0.011684531232703856,
+   "lin_ccc_nm": 0.927292689816749,
+   "median_scale_model_over_real": 1.013373073930543
+  },
+  "ceiling_half_A_vs_half_B": {
+   "spearman": 0.9932018389332669,
+   "pearson": 0.9958821922116532,
+   "spearman_distance_corrected": 0.9441223310781142,
+   "lin_ccc_nm": 0.9958686990876323,
+   "median_scale_model_over_real": 0.9998686155211209
+  }
+ },
+ {
+  "cell_line": "A549",
+  "region": "chr21:28-30 Mb",
+  "split": 1,
+  "cells_total": 3941,
+  "segments": 65,
+  "model": {
+   "spearman": 0.8071759952970596,
+   "pearson": 0.8089775571428528,
+   "spearman_distance_corrected": 0.48076653060244195,
+   "lin_ccc_nm": 0.11104966074593413,
+   "median_scale_model_over_real": 0.33302332159009146
+  },
+  "baseline_genomic_distance_only": {
+   "spearman": 0.9178030223796098,
+   "pearson": 0.9284913174678168,
+   "spearman_distance_corrected": -0.005571880427576412,
+   "lin_ccc_nm": 0.927390434077645,
+   "median_scale_model_over_real": 1.01136980809863
+  },
+  "ceiling_half_A_vs_half_B": {
+   "spearman": 0.9933668555869154,
+   "pearson": 0.9962691600264303,
+   "spearman_distance_corrected": 0.9505348017587006,
+   "lin_ccc_nm": 0.99616935060418,
+   "median_scale_model_over_real": 0.999688561465425
+  }
+ },
+ {
+  "cell_line": "A549",
+  "region": "chr21:28-30 Mb",
+  "split": 2,
+  "cells_total": 3941,
+  "segments": 65,
+  "model": {
+   "spearman": 0.8371531094884409,
+   "pearson": 0.8313565844756421,
+   "spearman_distance_corrected": 0.5490075651296218,
+   "lin_ccc_nm": 0.1266727801319656,
+   "median_scale_model_over_real": 0.3457653765475803
+  },
+  "baseline_genomic_distance_only": {
+   "spearman": 0.907222259599147,
+   "pearson": 0.9210177374378669,
+   "spearman_distance_corrected": 0.00520070279698397,
+   "lin_ccc_nm": 0.9204532841883489,
+   "median_scale_model_over_real": 1.026308927409815
+  },
+  "ceiling_half_A_vs_half_B": {
+   "spearman": 0.9914746137300228,
+   "pearson": 0.9953797603707982,
+   "spearman_distance_corrected": 0.9514577832333718,
+   "lin_ccc_nm": 0.9940501373795705,
+   "median_scale_model_over_real": 1.0104216626279219
+  }
+ }
+]

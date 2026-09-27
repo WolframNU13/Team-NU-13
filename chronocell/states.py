@@ -9,6 +9,10 @@ Every candidate file is sniffed from its content:
     .pdb  ATOM/HETATM lines  -> coordinates (first MODEL)
     .npz  frames / coords    -> ChronoCell bundle or coordinate archive
     .xyz / .csv              -> coordinates
+    .bed / .bedGraph / .bw   -> genomic signal track (binned onto the chromosome on load)
+    .cool / .mcool / .hic    -> contact map (the state's own Micro-C / Hi-C)
+    .tsv / .txt / .csv       -> by column structure: contact table, bedGraph track, or
+                                an RNA-seq expression table (gene, value)
 
 Only the .npy header is read to classify arrays (no data load, never unpickling). A file is
 assigned to one of three biological states from words in its path (file name first, then the
@@ -33,7 +37,9 @@ STATES = (HEALTHY, DISEASE, SENESCENT)
 SHORT_NAMES = {HEALTHY: "Healthy", DISEASE: "Disease", SENESCENT: "Senescent"}
 
 COORDS, FRAMES, TRACK, GRAPH, UNSUPPORTED = "coords", "frames", "track", "graph", "unsupported"
-EXTENSIONS = (".npy", ".pdb", ".npz", ".xyz", ".csv")
+CONTACTS, EXPRESSION = "contacts", "expression"
+EXTENSIONS = (".npy", ".pdb", ".npz", ".xyz", ".csv", ".tsv", ".txt", ".bed", ".bedgraph", ".bdg", ".bw", ".bigwig",
+              ".cool", ".mcool", ".hic")
 MIN_BEADS = 4
 MAX_SCAN_FILES = 400
 MAX_DEPTH = 4
@@ -71,6 +77,7 @@ class StateFile:
     chrom: str | None             # chromosome named in the path, if any
     detail: str                   # human-readable format summary or the reason it is unsupported
     path: str | None = None       # absolute path (folder files)
+    genomic: bool = False         # a track in genomic coordinates (BED / bedGraph / bigWig): fits any structure
 
     @property
     def is_structure(self) -> bool:
@@ -130,6 +137,22 @@ def sniff(name: str, data: bytes | None = None, path: str | os.PathLike | None =
     """(kind, n, shape, detail) from the file's content. Never raises."""
     ext = os.path.splitext(str(name).lower())[1]
     try:
+        if ext in (".cool", ".mcool", ".hic"):
+            return CONTACTS, 0, (), f"Hi-C / Micro-C contact map ({ext[1:]})"
+        if ext in (".bw", ".bigwig"):
+            return TRACK, 0, (), "bigWig signal track (binned on load)"
+        if ext in (".bed", ".bedgraph", ".bdg", ".tsv", ".txt", ".csv"):
+            head = data[:200_000] if data is not None else _head(path)
+            from .ingest import classify_text
+            kind = classify_text(head)
+            if kind == "track":
+                return TRACK, 0, (), ("bedGraph" if ext != ".bed" else "BED") + " signal track (binned on load)"
+            if kind == "contacts":
+                return CONTACTS, 0, (), "contact table (bins or positions + counts)"
+            if kind == "expression":
+                return EXPRESSION, 0, (), "expression table (gene, value)"
+            if ext != ".csv":
+                return UNSUPPORTED, 0, (), "text table not recognised (track, contacts or expression)"
         if ext == ".npy":
             if data is not None:
                 shape, dtype = _npy_header(io.BytesIO(data))
@@ -169,6 +192,11 @@ def sniff(name: str, data: bytes | None = None, path: str | os.PathLike | None =
     except Exception as exc:  # corrupted / truncated files are reported, not raised
         return UNSUPPORTED, 0, (), f"unreadable: {str(exc)[:120]}"
     return UNSUPPORTED, 0, (), f"extension {ext or '(none)'} not supported"
+
+
+def _head(path, size: int = 200_000) -> bytes:
+    with open(path, "rb") as fh:
+        return fh.read(size)
 
 
 def load_track(data: bytes) -> np.ndarray:
@@ -257,14 +285,15 @@ def scan_folder(root: str | os.PathLike, signature=None) -> list[StateFile]:
         kind, n, shape, detail = sniff(p, path=p)
         files.append(StateFile(key=f"folder:{rel}", name=rel, origin="folder", kind=kind, n=int(n),
                                shape=tuple(int(v) for v in shape), state=infer_state(rel), chrom=infer_chrom(rel),
-                               detail=detail, path=p))
+                               detail=detail, path=p, genomic=kind == TRACK and n == 0))
     return files
 
 
 def sniff_upload(state: str, name: str, data: bytes) -> StateFile:
     kind, n, shape, detail = sniff(name, data=data)
     return StateFile(key=f"upload:{state}:{name}", name=name, origin="upload", kind=kind, n=int(n),
-                     shape=tuple(int(v) for v in shape), state=state, chrom=infer_chrom(name), detail=detail)
+                     shape=tuple(int(v) for v in shape), state=state, chrom=infer_chrom(name), detail=detail,
+                     genomic=kind == TRACK and n == 0)
 
 
 def for_chromosome(files: list[StateFile], chrom_name: str) -> list[StateFile]:
@@ -281,6 +310,8 @@ class StatePlan:
     structures: tuple[StateFile, ...]
     tracks: tuple[StateFile, ...]
     other: tuple[StateFile, ...]          # graphs and unsupported files (reported, not used)
+    contacts: tuple[StateFile, ...] = ()  # the state's own contact maps (used as its graph)
+    expression: tuple[StateFile, ...] = ()  # RNA-seq tables (Genes workspace)
 
     @property
     def empty(self) -> bool:
@@ -290,10 +321,14 @@ class StatePlan:
 def plan(files: list[StateFile], state: str) -> StatePlan:
     mine = [f for f in files if f.state == state]
     order = lambda f: (0 if f.origin == "upload" else 1, f.name.lower())  # uploads first, then by path
+    special = (CONTACTS, EXPRESSION)
     return StatePlan(state,
                      tuple(sorted((f for f in mine if f.is_structure), key=order)),
                      tuple(sorted((f for f in mine if f.is_track), key=order)),
-                     tuple(sorted((f for f in mine if not f.is_structure and not f.is_track), key=order)))
+                     tuple(sorted((f for f in mine if not f.is_structure and not f.is_track and f.kind not in special),
+                                  key=order)),
+                     tuple(sorted((f for f in mine if f.kind == CONTACTS), key=order)),
+                     tuple(sorted((f for f in mine if f.kind == EXPRESSION), key=order)))
 
 
 def _stem_tokens(name: str) -> set[str]:
@@ -310,7 +345,7 @@ def best_track(structure: StateFile | None, tracks: tuple[StateFile, ...] | list
         return tracks[0]
 
     def score(t: StateFile) -> tuple:
-        length = 2 if t.n == structure.n else (1 if n_full and t.n == n_full else 0)
+        length = 2 if t.n == structure.n else (1 if (n_full and t.n == n_full) or t.genomic else 0)
         same_dir = int(os.path.dirname(t.name) == os.path.dirname(structure.name))
         shared = len(_stem_tokens(t.name) & _stem_tokens(structure.name))
         return (length, same_dir, shared)

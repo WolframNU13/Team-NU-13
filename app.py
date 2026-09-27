@@ -16,6 +16,7 @@ import math
 import os
 import sys
 import threading
+import time
 import types
 from pathlib import Path
 
@@ -82,17 +83,20 @@ def _stamp_project_modules() -> None:
 
 with _LOCK:
     _refresh_project_modules()
-    for _attempt in (1, 2):
+    for _attempt in (1, 2, 3):
         try:
-            from chronocell import agent as A, features, formats, genome, physics, states as S, theme as T, viz
-            from ui import agent_panel, four_d, states_panel
+            from chronocell import (agent as A, domains, features, formats, genes as G, genome, pdf_report, physics,
+                                    snapshot as SN, states as S, theme as T, viz)
+            from ui import agent_panel, compare, drug_lab, four_d, genes_view, guide, states_panel
             from ui.common import (SLOT_ROOT, Dataset, banner, clamp_window, esc, fmt, html, load_dataset, readout,
                                    slot_files, slot_graph, warning_card)
             break
         except (KeyError, ImportError):
             # A file saved while this run was importing: the watcher unloaded a module mid-import.
-            if _attempt == 2:
+            # Give the watcher a moment to finish, then re-import everything consistently.
+            if _attempt == 3:
                 raise
+            time.sleep(0.4 * _attempt)
             _purge_project_modules()
     try:
         import torch
@@ -107,7 +111,7 @@ st.set_page_config(page_title="ChronoCell-5D · chromatin 3D/4D workstation", pa
                    initial_sidebar_state="expanded")
 T.inject()
 
-VERSION = "3.1"
+VERSION = "3.2"
 MAX_FIT_BEADS = 2000
 MIN_FIT_CONTACTS = 20
 REGIONS = {"whole": "Whole chromosome", "centromere": "Centromere", "telomeres": "Telomeric ends",
@@ -151,7 +155,7 @@ def hubs_for(ds_key: str, _ds: Dataset) -> list[tuple[int, int, float]]:
     return features.signal_hubs(_ds.epi, _ds.valid)
 
 
-@st.cache_data(show_spinner=False, max_entries=64)
+@st.cache_resource(show_spinner=False, max_entries=64)
 def analyse(coords: np.ndarray, b0: float, d_min_factor: float) -> dict:
     """All structure-level physics for one conformation window (cached on the coordinates)."""
     bonds = physics.bond_lengths(coords)
@@ -258,14 +262,20 @@ MARK = ('<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><pat
         f'fill="none" stroke="{T.INK}" stroke-width="1.6"/><path d="M5 6c3 9 5 13 8 13s5-4 8-13" fill="none" '
         f'stroke="{T.ACCENT}" stroke-width="1.6"/></svg>')
 
-bar_l, bar_m, bar_r = st.columns([1.1, 1, 1.1], vertical_alignment="center")
+WORKSPACES = {   # key: (number, label, one-line plain-language purpose)
+    "3D structure": ("01", "3D structure", "See how one chromosome is folded inside the nucleus, and measure it."),
+    "4D dynamics": ("02", "4D dynamics", "Watch the fold change over time, between conditions, or after a DNA rearrangement."),
+    "Compare": ("03", "Compare", "Put two biological states side by side; rotating one rotates the other."),
+    "Drug lab": ("04", "Drug lab", "Apply a virtual epigenetic drug and see how far it pushes the fold back toward healthy."),
+    "Genes": ("05", "Genes", "Find which genes sit in open, active chromatin and which are buried and likely silenced."),
+    "Guide": ("06", "Guide", "What everything means, in plain words, with a 2-minute tour."),
+}
+if ss.get("workspace") not in WORKSPACES:
+    ss.workspace = "3D structure"
+
+bar_l, bar_r = st.columns([1, 1.4], vertical_alignment="center")
 bar_l.markdown(f'<div class="cc-brand">{MARK}<b>ChronoCell-5D</b><span>chromatin 3D / 4D workstation</span></div>',
                unsafe_allow_html=True)
-with bar_m, st.container(key="seg_workspace"):
-    workspace = st.segmented_control("Workspace", ["3D structure", "4D dynamics"], required=True, key="workspace",
-                                     label_visibility="collapsed",
-                                     format_func=lambda w: {"3D structure": "01  3D structure",
-                                                            "4D dynamics": "02  4D dynamics"}[w])
 with bar_r, st.container(key="nav", horizontal=True, horizontal_alignment="right", gap="medium"):
     chrom_choice = st.selectbox("Chromosome", genome.MAIN_CHROMOSOMES, key="chrom_choice",
                                 label_visibility="collapsed", width=110)
@@ -284,9 +294,11 @@ with bar_r, st.container(key="nav", horizontal=True, horizontal_alignment="right
                             help="Auto keeps files that declare nanometres and calibrates anything else so the "
                                  "median bond equals b₀. Arbitrary network units are never labelled as Å.")
         st.markdown('<p class="cc-eyebrow">Tracks and contacts</p>', unsafe_allow_html=True)
-        g_file = st.file_uploader("Graph", type=["npz", "pt", "pth"],
-                                  help="graph .npz from `python -m chronocell.build_graph` or the Colab notebook, "
-                                       "or the legacy graph_data.pt. A graph*.npz in the folder slot is used automatically.")
+        g_file = st.file_uploader("Graph or contact map", type=["npz", "pt", "pth", "cool", "mcool", "hic", "tsv", "txt"],
+                                  help="graph .npz from `python -m chronocell.build_graph` or the Colab notebook "
+                                       "(GC + H3K27ac + contacts), or a patient contact map on its own: .cool / .mcool, "
+                                       ".hic (needs hic-straw), or a text table (bin_i bin_j count, or chrom pos chrom "
+                                       "pos count). A graph*.npz in the folder slot is used automatically.")
         trusted = st.checkbox("Allow unpickling .pt files from my own pipeline",
                               help="PyG Data objects need full unpickling, which can execute code. Only enable for "
                                    "files you produced.")
@@ -309,11 +321,22 @@ with bar_r, st.container(key="nav", horizontal=True, horizontal_alignment="right
         html(f'<p class="cc-note">Version {VERSION} · PyTorch {"available" if TORCH else "not installed"} · '
              f'Plotly {plotly.__version__} · Streamlit {st.__version__}</p>')
 
+with st.container(key="seg_workspace"):
+    workspace = st.segmented_control("Workspace", list(WORKSPACES), required=True, key="workspace",
+                                     label_visibility="collapsed",
+                                     format_func=lambda w: f"{WORKSPACES[w][0]}  {WORKSPACES[w][1]}")
+    workspace = workspace or "3D structure"
+html(f'<p class="cc-purpose">{WORKSPACES[workspace][2]}</p>')
+
 # ======================================================================================
 # Sidebar: biological state (files found by format) and ChronoAgent settings
 # ======================================================================================
 bio = states_panel.sidebar(chrom_choice, genome.chrom(chrom_choice).n_bins)
 agent_cfg = agent_panel.sidebar_settings()
+
+if workspace == "Guide":            # plain-language guide: needs no data
+    guide.render(VERSION)
+    st.stop()
 
 # ======================================================================================
 # Coordinate slot: uploads > folder > biological-state files > reference model
@@ -334,6 +357,7 @@ for p in slot:
 # conditions", metrics, ChronoAgent) sees them; each carries its state name and signal track.
 state_of: dict[int, str] = {}
 track_of: dict[int, tuple] = {}
+graph_of: dict[int, tuple] = {}     # a state's own contact map replaces the global graph for its structures
 state_src: dict[str, int] = {}
 for st_name in S.STATES:
     for sf in bio.plans[st_name].structures:
@@ -346,6 +370,8 @@ for st_name in S.STATES:
             state_of.setdefault(idx, st_name)
             if (tr := bio.track_for(sf)) is not None:
                 track_of[idx] = states_panel.as_source(tr)
+            if bio.plans[st_name].contacts:
+                graph_of[idx] = states_panel.as_source(bio.plans[st_name].contacts[0])
         except (OSError, KeyError) as exc:
             load_problems.append(f"{sf.name}: {exc}")
 
@@ -382,14 +408,15 @@ def load_source(i: int) -> tuple[Dataset, str | None]:
     coordinate file itself is given up on."""
     trk = track_arg if i == src_idx else track_of.get(i)
     cond = state_of.get(i)
+    g = graph_of.get(i, graph)
     try:
-        return load_dataset(chrom_choice, int(seed), b0_arg, sources[i], unit, graph, bool(trusted), trk, cond), None
+        return load_dataset(chrom_choice, int(seed), b0_arg, sources[i], unit, g, bool(trusted), trk, cond), None
     except Exception as exc:
-        if graph is None:
+        if g is None:
             raise
         g_err = exc
     d = load_dataset(chrom_choice, int(seed), b0_arg, sources[i], unit, None, bool(trusted), trk, cond)
-    return d, (f"{graph[1]} could not be applied ({g_err}). Tracks and contacts come from the structure file "
+    return d, (f"{g[1]} could not be applied ({g_err}). Tracks and contacts come from the structure file "
                "or the reference instead.")
 
 
@@ -485,6 +512,29 @@ if ds.n_frames > 1 and workspace == "3D structure":
 # ======================================================================================
 # 4D workspace
 # ======================================================================================
+@st.cache_resource(show_spinner=False, max_entries=32)
+def domain_report(key: str, _ds: Dataset, _coords: np.ndarray, lo: int, hi: int, b0: float) -> domains.DomainReport:
+    """TADs, compartments, loops and contact decay for one window (measured contacts when present)."""
+    n = hi - lo
+    ci = cj = cm = None
+    if _ds.has_contacts:
+        m = (_ds.ci >= lo) & (_ds.ci < hi) & (_ds.cj >= lo) & (_ds.cj < hi)
+        if int(m.sum()) >= 50:
+            ci, cj, cm = _ds.ci[m] - lo, _ds.cj[m] - lo, _ds.cm[m]
+    return domains.analyse(n, _ds.chrom.resolution, b0, _coords, ci, cj, cm, orient=_ds.gc[lo:hi])
+
+
+@st.cache_data(show_spinner=False, max_entries=32)
+def gene_table(key: str, _ds: Dataset, _coords: np.ndarray, lo: int, hi: int, b0: float):
+    return G.accessibility_table(_coords, _ds.epi[lo:hi], _ds.valid[lo:hi], b0, _ds.chrom, _ds.bin0 + lo,
+                                 not _ds.signal_is_placeholder)
+
+
+def vkey(scope: str, lo: int, hi: int, reconstruction: bool, coords: np.ndarray) -> str:
+    """Cache key of one view (dataset, window, frame or reconstruction)."""
+    return f"{ds.key}:{scope}:{lo}:{hi}:{reconstruction}:{hash(coords.tobytes()) if reconstruction else frame_idx}"
+
+
 def pdb_for(coords: np.ndarray, first_local: int, method: str) -> tuple[str, str] | None:
     """Current-state structure as wwPDB text + a file name, or None if it cannot be written."""
     g0 = ds.bin0 + first_local
@@ -497,12 +547,72 @@ def pdb_for(coords: np.ndarray, first_local: int, method: str) -> tuple[str, str
     return text, f"ChronoCell_{tag}_{ch.name}_{g0}-{g0 + len(coords) - 1}.pdb"
 
 
+def analysis_extras(coords: np.ndarray, lo: int, hi: int, key: str) -> tuple[dict, object, object]:
+    """Genes, neighbourhoods and the latest drug-lab run for the view (for ChronoAgent and the dossier)."""
+    extras: dict = {}
+    dom = tab = None
+    try:
+        dom = domain_report(key, ds, coords, lo, hi, float(b0))
+        extras["neighbourhoods"] = dom.summary(ch.resolution)
+    except Exception:
+        pass
+    try:
+        tab = gene_table(key, ds, coords, lo, hi, float(b0))
+        extras["genes_on_fold"] = G.summary(tab)
+        last = ss.get("genes_last")
+        if last and last.get("ds_key") == ds.key and last["table"]["expression"].notna().any():
+            agree = G.expression_agreement(last["table"])
+            if np.isfinite(agree["rho"]):
+                extras["genes_on_fold"]["expression_rho"] = round(float(agree["rho"]), 3)
+    except Exception:
+        pass
+    lab = ss.get("drug_lab_last")
+    if lab and lab.get("ds_key") == ds.key:
+        best = lab.get("ranking")
+        extras["drug_lab"] = {"drug": lab["drug"], "mode": lab["mode"], "region": lab["region"],
+                              "restoration_pct": lab.get("restoration_pct"),
+                              "best_drug": None if best is None or not len(best) else str(best.iloc[0]["drug"])}
+    return extras, dom, tab
+
+
+def dossier_builder(ctx, coords: np.ndarray, lo: int, hi: int, region_name: str, dom, tab):
+    """Returns a function (analysis text, engine, question) -> PDF bytes for this view."""
+    def build(text: str, engine: str, query: str) -> bytes:
+        valid = ds.valid[lo:hi]
+        vals = SN.normalise(ds.epi[lo:hi], valid)
+        stops = T.SCALES["Epigenomic Signal Heatmap"]
+        img = SN.render(coords, vals, stops, valid, size=(1100, 780), title=f"{agent_state} · {region_name}",
+                        scale_nm=SN.nice_scale(coords))
+        images = []
+        healthy = state_datasets.get(S.HEALTHY)
+        if (healthy is not None and agent_state != S.HEALTHY and healthy.chrom.name == ch.name
+                and healthy.bin0 <= ds.bin0 + lo and healthy.bin0 + healthy.n >= ds.bin0 + hi):
+            hx = healthy.frames[0][ds.bin0 + lo - healthy.bin0:ds.bin0 + hi - healthy.bin0]
+            _, hx, _ = physics.kabsch_rmsd(coords, hx)
+            himg = SN.render(hx, SN.normalise(healthy.epi[ds.bin0 + lo - healthy.bin0:ds.bin0 + hi - healthy.bin0], valid),
+                             stops, valid, size=(1100, 780), title=f"Healthy Control · {region_name}",
+                             scale_nm=SN.nice_scale(coords))
+            images.append(("Healthy Control (left) vs " + agent_state + " (right), signal heatmap",
+                           SN.png(SN.side_by_side(himg, img))))
+        else:
+            images.append((f"{agent_state}, coloured by signal (blue low, magenta high)", SN.png(img)))
+        lab = ss.get("drug_lab_last")
+        therapy = lab if lab and lab.get("ds_key") == ds.key else None
+        return pdf_report.build(ctx, text, engine, query, images, physics.local_density(coords, 1.5 * float(b0)),
+                                tab, G.summary(tab) if tab is not None else None,
+                                dom.summary(ch.resolution) if dom is not None else None, therapy,
+                                software=f"ChronoCell-5D {VERSION}")
+    return build
+
+
 def chrono_agent(coords: np.ndarray, lo: int, hi: int, region: str, reconstruction: bool, scope: str,
                  cards: bool = False) -> None:
     """Metric dashboard (optional) and the ChronoAgent panel for the structure in view."""
+    key = vkey(scope, lo, hi, reconstruction, coords)
     try:
+        extras, dom, tab = ({}, None, None) if cards else analysis_extras(coords, lo, hi, key)
         ctx = agent_panel.build_context(ds, coords, lo, hi, float(b0), region, agent_state, shown_state is not None,
-                                        reconstruction, state_datasets)
+                                        reconstruction, state_datasets, extras)
     except Exception as exc:  # metrics must never take the workstation down
         warning_card("Structural metrics unavailable for this view", str(exc))
         return
@@ -510,14 +620,55 @@ def chrono_agent(coords: np.ndarray, lo: int, hi: int, region: str, reconstructi
         agent_panel.metric_cards(ctx)
         return
     method = "contact embedding + EGNN" if reconstruction else ("reference model" if ds.is_reference else "input")
-    agent_panel.render(ctx, agent_cfg, pdb_for(coords, lo, method), scope)
+    agent_panel.render(ctx, agent_cfg, pdb_for(coords, lo, method), scope,
+                       dossier_builder(ctx, coords, lo, hi, region, dom, tab))
+
+
+def status_bar() -> None:
+    html(f'<div class="cc-status"><span>Structure · {ds.structure_label}</span><span>Tracks · {ds.tracks_label}</span>'
+         f'<span class="cc-num">{ch.name} · {ch.resolution / 1000:g} kb · b₀ {b0:.0f} nm</span></div>')
 
 
 if workspace == "4D dynamics":
     four_d.render(ds, conditions or [ds], float(b0), frame_idx)
     chrono_agent(ds.frames[frame_idx], 0, ds.n, "Whole loaded structure", False, "4d")
-    html(f'<div class="cc-status"><span>Structure · {ds.structure_label}</span><span>Tracks · {ds.tracks_label}</span>'
-         f'<span class="cc-num">{ch.name} · {ch.resolution / 1000:g} kb · b₀ {b0:.0f} nm</span></div>')
+    status_bar()
+    st.stop()
+
+if workspace == "Compare":
+    ref_ds = ds if ds.is_reference else load_dataset(chrom_choice, int(seed), b0_arg, None, "Auto", None, False)
+    options = [(labels_src[0], ref_ds)] + [(labels_src[i], d) for i, d in sorted(cond_by_idx.items())]
+    keys = [d.key for _, d in options]
+    cur = keys.index(ds.key) if ds.key in keys else 0
+    healthy = state_datasets.get(S.HEALTHY)
+    left_i = keys.index(healthy.key) if healthy is not None and healthy.key in keys and healthy.key != ds.key else 0
+    right_i = cur if cur != left_i else (1 if len(options) > 1 and left_i == 0 else 0)
+    compare.render(options, left_i, right_i, float(b0))
+    status_bar()
+    st.stop()
+
+if workspace == "Drug lab":
+    baseline = state_datasets.get(S.HEALTHY) if agent_state != S.HEALTHY else None
+    patient = f"{agent_state} · {ds.structure_label}" if shown_state else ds.structure_label
+    if agent_state == S.HEALTHY and shown_state:
+        banner("The healthy control is selected. Pick <b>Disease State / Cancer</b> or <b>Senescent State</b> in the "
+               "sidebar to treat an abnormal fold.", "info")
+    drug_lab.render(ds, baseline, patient, float(b0), frame_idx)
+    chrono_agent(ds.frames[frame_idx], 0, ds.n, "Whole loaded structure", False, "lab")
+    status_bar()
+    st.stop()
+
+if workspace == "Genes":
+    state_expr = None
+    exp_files = bio.plans[agent_state].expression if shown_state else ()
+    if exp_files:
+        try:
+            state_expr = (G.parse_expression(states_panel.file_bytes(exp_files[0]), exp_files[0].name), exp_files[0].name)
+        except Exception as exc:
+            warning_card(f"Expression file {exp_files[0].name} could not be read", str(exc))
+    genes_view.render(ds, float(b0), frame_idx, state_expr)
+    chrono_agent(ds.frames[frame_idx], 0, ds.n, "Whole loaded structure", False, "genes")
+    status_bar()
     st.stop()
 
 # ======================================================================================
@@ -557,7 +708,9 @@ with head_l:
     html(f'<p class="cc-eyebrow" style="margin-top:22px">Fig. 1 — Reconstructed fold · {ch.name}</p>'
          f'<h1 class="cc-title">{REGIONS[region]}</h1>'
          f'<p class="cc-sub"><span class="cc-locus">{ch.name}:{int(ch.bin_start(g_lo)) + 1:,}–{int(ch.bin_end(g_hi - 1)):,}</span>'
-         f' · bins <span class="cc-num">{g_lo:,}–{g_hi - 1:,}</span> · {(hi - lo) * ch.resolution / 1e6:.2f} Mb</p>')
+         f' · bins <span class="cc-num">{g_lo:,}–{g_hi - 1:,}</span> · {(hi - lo) * ch.resolution / 1e6:.2f} Mb</p>'
+         f'<p class="cc-note">Each bead is {ch.resolution / 1000:g} kb of DNA; the tube follows the DNA from one end of '
+         f'the region to the other. Beads that touch in 3D can switch each other’s genes on or off.</p>')
     options = ["Input structure"] + (["EGNN reconstruction"] if fit is not None else [])
     shown = st.segmented_control("Structure", options, default=options[-1] if ss.get("show_fit") else options[0],
                                  required=True, key=f"structure_{fit_key}", label_visibility="collapsed") \
@@ -602,6 +755,9 @@ def stage(ds: Dataset, lo: int, hi: int, focus_mask: np.ndarray | None, sub: np.
               "H3K27ac": ds.epi[lo:hi], "Monochrome": np.zeros(hi - lo),
               "Residue Index Spectrum": np.arange(hi - lo, dtype=float),
               "Epigenomic Signal Heatmap": ds.epi[lo:hi]}.get(colour, idx.astype(float))
+    if colour in ("A/B compartment", "TAD domains"):
+        rep_ = domain_report(vkey("3d", lo, hi, using_fit, sub), ds, sub, lo, hi, float(b0))
+        values = rep_.compartment if colour == "A/B compartment" else rep_.tad_labels()
     intensity = viz.encode(values, ds.valid[lo:hi], focus_mask)
     focus_color = T.ACCENT if (colour == "Monochrome" and focus_mask is not None) else None
     ctx = None
@@ -623,7 +779,9 @@ def stage(ds: Dataset, lo: int, hi: int, focus_mask: np.ndarray | None, sub: np.
         ends = {"Genomic position": (f"{float(ch.bin_start(idx[0])) / 1e6:.1f} Mb", f"{float(ch.bin_end(idx[-1])) / 1e6:.1f} Mb"),
                 "GC content": ("AT-rich", "GC-rich"), "H3K27ac": ("low", "high"),
                 "Residue Index Spectrum": ("bead 1", f"bead {hi - lo:,}"),
-                "Epigenomic Signal Heatmap": ("low signal", "high signal")}[colour]
+                "Epigenomic Signal Heatmap": ("low signal", "high signal"),
+                "A/B compartment": ("B · inactive", "A · active"),
+                "TAD domains": ("domain", "next domain")}[colour]
         legend = (f'{colour}&nbsp; <span class="cc-num">{ends[0]}</span>'
                   f'<span class="bar" style="background:linear-gradient(90deg,{grad})"></span>'
                   f'<span class="cc-num">{ends[1]}</span>')
@@ -632,7 +790,12 @@ def stage(ds: Dataset, lo: int, hi: int, focus_mask: np.ndarray | None, sub: np.
 
     with st.container(key="stage"):
         st.plotly_chart(fig, theme=None, key="viewport", width="stretch",
-                        config={"displayModeBar": False, "scrollZoom": True, "responsive": True})
+                        config={"displayModeBar": True, "displaylogo": False, "scrollZoom": True, "responsive": True,
+                                "modeBarButtonsToRemove": ["zoom3d", "pan3d", "orbitRotation", "tableRotation",
+                                                           "handleDrag3d", "resetCameraLastSave3d", "hoverClosest3d",
+                                                           "resetCameraDefault3d"],
+                                "toImageButtonOptions": {"format": "png", "scale": 3,
+                                                         "filename": f"chronocell_{ch.name}_{lo}-{hi}"}})
 
     fitv = phys["fit"]
     spec_l, spec_r = st.columns([1, 1])
@@ -642,7 +805,8 @@ def stage(ds: Dataset, lo: int, hi: int, focus_mask: np.ndarray | None, sub: np.
         f'ν <span class="cc-num">{fmt(fitv.nu, 3)}</span> ({fitv.regime}) · '
         f'<span class="cc-num">{phys["steric"].overlaps}</span> overlaps</li></ul>', unsafe_allow_html=True)
     spec_r.markdown('<p class="cc-help"><kbd>drag</kbd> rotate · <kbd>scroll</kbd> zoom · <kbd>right-drag</kbd> pan · '
-                    '<kbd>double-click</kbd> reset<br>hover a bead for its locus</p>', unsafe_allow_html=True)
+                    '<kbd>double-click</kbd> reset<br>hover a bead for its locus · camera icon (top right of the view) '
+                    'saves a PNG</p>', unsafe_allow_html=True)
 
 
 main_l, main_r = st.columns([2.2, 1], gap="large")
@@ -908,6 +1072,34 @@ with main_r, st.container(height=int(ss.get("disp_height", 720)) + 120, key="ins
             st.code("\n".join(check.issues), language="text")
         if pdb_text:
             st.code("\n".join(pdb_text.splitlines()[:22]), language="text")
+
+    # ---- 05 Neighbourhoods ---------------------------------------------------------------
+    with st.expander("05   Neighbourhoods (TADs & compartments)", expanded=False):
+        html('<p class="cc-note">DNA is organised into self-contained <b>neighbourhoods</b> (TADs, like rooms in a '
+             'house) and two <b>compartments</b>: A, the busy city centre of active genes, and B, the quiet suburbs.</p>')
+        try:
+            rep_nb = domain_report(vkey("3d", lo, hi, using_fit, sub), ds, sub, lo, hi, float(b0))
+            sm = rep_nb.summary(ch.resolution)
+            readout([
+                ("Built from", sm["source"], ""),
+                ("TAD-like neighbourhoods<small>insulation-score minima</small>", f"{sm['tads']:,}",
+                 f"median {sm['median_tad_mb']} Mb" if sm["median_tad_mb"] else ""),
+                ("Active (A) compartment", fmt(100 * sm["a_compartment_fraction"], 0)
+                 if sm["a_compartment_fraction"] is not None else "—", "% of region"),
+                ("Candidate loops<small>strongest long-range enrichments</small>", f"{sm['loops']:,}", ""),
+                ("Contact decay γ<small>P(s) ∝ s<sup>−γ</sup>; ≈ 1 crumpled, ≈ 1.5 loose</small>",
+                 fmt(sm["contact_decay_gamma"], 3) if sm["contact_decay_gamma"] is not None else "—", ""),
+            ])
+            gbins = ds.gbin(np.arange(lo, hi))
+            st.plotly_chart(viz.domains_chart(ch.bin_start(gbins) / 1e6, rep_nb.insulation,
+                                              [float(ch.bin_start(ds.bin0 + lo + b)) / 1e6 for b in rep_nb.boundaries],
+                                              rep_nb.compartment),
+                            theme=None, width="stretch", config=T.PLOT_CONFIG, key="domains")
+            for note in rep_nb.notes:
+                html(f'<p class="cc-note">{esc(note)}</p>')
+            html('<p class="cc-note">Colour the fold by <b>A/B compartment</b> or <b>TAD domains</b> under Display.</p>')
+        except Exception as exc:
+            warning_card("Neighbourhoods could not be computed for this window", str(exc))
 
 # ======================================================================================
 # ChronoAgent (fragment: questions and analyses re-render only the panel)

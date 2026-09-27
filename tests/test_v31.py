@@ -42,7 +42,8 @@ def test_sniff_never_raises_on_bad_content():
     assert S.sniff("x.npy", data=_npy(np.array(["a", "b", "c", "d"])))[0] == S.UNSUPPORTED     # non-numeric
     assert S.sniff("x.pdb", data=b"HEADER nothing here\nEND\n")[0] == S.UNSUPPORTED
     assert S.sniff("x.npz", data=b"PK not a zip")[0] == S.UNSUPPORTED
-    assert S.sniff("x.bed", data=b"chr22\t1\t2\n")[0] == S.UNSUPPORTED
+    assert S.sniff("x.xls", data=b"chr22\t1\t2\n")[0] == S.UNSUPPORTED                       # unknown extension
+    assert S.sniff("x.bed", data=b"chr22\t1\t2\n")[0] == S.TRACK                            # BED3 is a track (v3.2)
 
 
 def test_pdb_and_bundle_sniffed(ref):

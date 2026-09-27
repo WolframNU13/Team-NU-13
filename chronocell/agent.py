@@ -205,6 +205,7 @@ class AgentContext:
     metrics: Metrics
     genes: tuple[str, ...] = ()
     comparisons: tuple[Comparison, ...] = field(default_factory=tuple)
+    extras: dict = field(default_factory=dict)   # genes_on_fold / neighbourhoods / drug_lab summaries (v3.2)
 
     def payload(self) -> dict:
         return {
@@ -220,6 +221,7 @@ class AgentContext:
             "reference_points": {"nu_fractal_globule": 0.333, "nu_ideal_chain": 0.5, "nu_self_avoiding": 0.588,
                                  "packing_reference_globule": REFERENCE_PACKING,
                                  "dense_neighbourhood": f">= {DENSE_NEIGHBOURS} beads within {DENSITY_RADIUS_B0} b0"},
+            **({"additional_analyses": self.extras} if self.extras else {}),
         }
 
     def fingerprint(self) -> str:
@@ -389,6 +391,14 @@ def heuristic_analysis(ctx: AgentContext, query: str = "") -> str:
                   "Few crowded foci: chromatin is evenly or loosely packed." if m.dense_fraction < 0.1 else ""))
     for ln in comp_lines:
         out.append(f"- {ln}")
+    dom = ctx.extras.get("neighbourhoods") or {}
+    if dom:
+        parts = [f"{dom.get('tads')} TAD-like neighbourhoods" + (f" (median {dom['median_tad_mb']} Mb)" if dom.get("median_tad_mb") else "")]
+        if dom.get("a_compartment_fraction") is not None:
+            parts.append(f"{100 * dom['a_compartment_fraction']:.0f}% of the region in the active A compartment")
+        if dom.get("contact_decay_gamma") is not None:
+            parts.append(f"contact decay γ = {dom['contact_decay_gamma']} (≈ 1 crumpled globule, ≈ 1.5 loose coil)")
+        out.append(f"- **Neighbourhoods** (from {dom.get('source', 'contacts')}): " + "; ".join(parts) + ".")
     if ctx.state != HEALTHY and any(c.state == HEALTHY for c in ctx.comparisons):
         out.append(f"- **Net shift vs Healthy Control:** "
                    + {1: "decompaction (open, expanded domains).", -1: "compaction (condensed, crowded foci).",
@@ -429,6 +439,14 @@ def heuristic_analysis(ctx: AgentContext, query: str = "") -> str:
                        "structural readout is re-compaction or loss of the senescent population.")
     for title, _, therapy in topics:
         out.append(f"- **{title}:** {therapy}")
+    lab = ctx.extras.get("drug_lab") or {}
+    if lab:
+        line = f"- **Virtual drug lab** ({lab.get('region', 'this region')}): {lab.get('drug')} ({lab.get('mode')})"
+        if lab.get("restoration_pct") is not None and math.isfinite(lab["restoration_pct"]):
+            line += f" restored {lab['restoration_pct']:.0f}% of the fold toward healthy at full dose"
+        if lab.get("best_drug"):
+            line += f"; the best-matching mechanism in the simulation was {lab['best_drug']}"
+        out.append(line + ". This is a mechanism simulation, not an efficacy prediction.")
 
     # ---- expression & accessibility ----------------------------------------------------
     out.append("### Expression & accessibility insights")
@@ -461,6 +479,17 @@ def heuristic_analysis(ctx: AgentContext, query: str = "") -> str:
             out.append("- Least crowded (most accessible) loci: " + ", ".join(l.label for l in m.accessible) + ".")
         if m.compact:
             out.append("- Most crowded loci: " + ", ".join(l.label for l in m.compact) + ".")
+    gs = ctx.extras.get("genes_on_fold") or {}
+    if gs and gs.get("genes_in_view"):
+        out.append(f"- **Genes on the fold:** {gs['genes_in_view']} promoters in view; {gs.get('open', 0)} predicted "
+                   f"active, {gs.get('buried', 0)} predicted silenced."
+                   + (f" Most open: {', '.join(gs['top_open'][:5])}." if gs.get("top_open") else "")
+                   + (f" Most buried: {', '.join(gs['top_buried'][:5])}." if gs.get("top_buried") else ""))
+        flagged = [f"{g['gene']} ({g['status'].split(' (')[0].lower()})" for g in gs.get("flagged_disease_genes", [])][:8]
+        if flagged:
+            out.append("- **Disease-relevant genes here:** " + ", ".join(flagged) + ".")
+        if gs.get("expression_rho") is not None:
+            out.append(f"- Measured expression vs predicted accessibility: Spearman ρ = {gs['expression_rho']:+.2f}.")
     out.append("- Hypothesis: transcription scales with accessibility; loci that are both open and signal-rich "
                "are the first candidates for expression changes between states (test with RNA-seq or ATAC-seq).")
     for title, biology, _ in topics:

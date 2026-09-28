@@ -553,3 +553,29 @@ Made by Claude (Claude Code, Claude Opus 5.5); requested by Shivoham Pandey.
   - telemetry rows appear.
 - **Tests: 114 passing** (2 new: end-to-end app test of the population model, scores, probe,
   slicing and dossier; and the PDF two-score section).
+
+### Phase 4 — REST API and run log (21:41)
+
+Made by Claude (Claude Code, Claude Opus 5.5); requested by Shivoham Pandey.
+
+- **New `chronocell/api.py`:** handlers for `/api/v1/reconstruct` (population ≤ 400 beads or
+  single ≤ 2,000), `/api/v1/metrics` and `/api/v1/benchmark`.
+  - They are plain dict-in / dict-out functions; `create_app()` wraps them in FastAPI, and
+    `python -m chronocell.api` serves them.
+  - Responses keep the two accuracy scores separate.
+  - Bad input, including model-level errors and non-object bodies, is rejected as a request error
+    (HTTP 400), not a server error.
+- **FastAPI is not installed and was NOT installed** (an install needs the requester's go-ahead).
+  The wrapper's test is skipped until `pip install fastapi uvicorn`; the handlers are fully tested.
+- **Run log:** JSON lines in `.chronocell_cache/api_run_log.jsonl` (git-ignored). Each line holds:
+  - run id, UTC time, endpoint and software version;
+  - parameters, as sizes only, never raw data;
+  - the input's SHA-256;
+  - run time, status and a result summary.
+  It is documented as a reproducibility record, with no compliance claim.
+- **Docs:** README (REST API section), APP_GUIDE, and an optional line in `requirements.txt`.
+- **Tests: 117 passing, 1 skipped** (the FastAPI wrapper).
+
+**21:41 · Pushed** branch `feat/microscopy-accuracy-v3.3` to github.com/Sh1voham/ChronoCell-5D
+(private) at the requester's instruction. `origin` was updated from the old WolframNU13/Team-NU-13 URL.
+No licence was added; `main` was not pushed.

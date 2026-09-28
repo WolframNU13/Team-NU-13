@@ -799,3 +799,17 @@ The panel **🤖 ChronoAgent: Structural Genomics Interpreter** sits below the 3
 
 **New command-line option:** `python -m chronocell.build_graph ... --balance` ICE-balances the contact
 map (`chronocell/normalize.py`).
+
+**REST API** (`chronocell/api.py`; optional, `pip install fastapi uvicorn`, then `python -m chronocell.api`):
+- `POST /api/v1/reconstruct` (population ≤ 400 beads, or single ≤ 2,000);
+- `POST /api/v1/metrics`;
+- `GET /api/v1/benchmark`.
+
+The handlers are plain Python functions (`api.reconstruct`, `api.metrics`, `api.benchmark`), so
+they also work without a web server. Each call is appended to `.chronocell_cache/api_run_log.jsonl`
+with:
+- the input's SHA-256;
+- parameters, as sizes only (no raw data);
+- the software version, run time and outcome.
+
+It is a reproducibility log, not a compliance audit trail.

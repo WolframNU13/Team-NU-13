@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![Streamlit](https://img.shields.io/badge/streamlit-1.50%2B-FF4B4B?logo=streamlit&logoColor=white)
 ![PyTorch](https://img.shields.io/badge/pytorch-2.2%2B-EE4C2C?logo=pytorch&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-114%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-117%20passing-2ea44f)
 
 <p align="center">
   <img src="docs/images/fold.png" alt="3D fold of the long arm of human chromosome 22, coloured from one end to the other" width="760">
@@ -166,8 +166,32 @@ python -m chronocell.train --graph graph.npz --out predicted_coords.npz
 python -m chronocell.benchmark                                   # accuracy on synthetic structures
 python -m chronocell.demo_states demo_states                     # write the demo patients as files
 python validation/validate_tracing.py                            # accuracy against real microscopy
-python -m pytest                                                 # 114 tests
+python -m pytest                                                 # 117 tests
 ```
+
+## REST API (optional)
+
+The endpoints are plain functions in `chronocell/api.py`, and FastAPI serves them over HTTP when it is
+installed:
+
+```bash
+pip install fastapi uvicorn
+python -m chronocell.api --port 8000        # interactive docs at http://127.0.0.1:8000/docs
+```
+
+| Endpoint | Input | Output |
+|---|---|---|
+| `POST /api/v1/reconstruct` | `contacts: {i, j, count}`, `n_beads`, `model: "population"` (≤ 400 beads) or `"single"` | 3D coordinates, metrics, **both accuracy scores** kept separate, timings |
+| `POST /api/v1/metrics` | `coords_nm` (N×3), optional `contacts` | R_g, span, ν, overlaps; contact-map fit if contacts are given |
+| `GET /api/v1/benchmark` | none | the held-out microscopy benchmark |
+
+Every call is appended to a run log (`.chronocell_cache/api_run_log.jsonl`). Each entry records:
+- time, endpoint and software version;
+- parameters, as sizes only (no raw data);
+- a SHA-256 of the exact input;
+- run time and outcome.
+
+It is a reproducibility record, not a clinical or regulatory audit trail.
 
 ## Project layout
 
@@ -181,6 +205,7 @@ ChronoCell-5D/
 │   ├── ensemble.py         v3.3 population model: max-entropy ensemble + exact Langevin trajectories
 │   ├── accuracy.py         the two separate accuracy scores (contact-map fit, microscopy benchmark)
 │   ├── normalize.py        ICE contact-map balancing
+│   ├── api.py              REST endpoints (reconstruct / metrics / benchmark) and run log
 │   ├── synthetic.py        synthetic reference model
 │   ├── features.py         GC / signal binning, contact extraction
 │   ├── formats.py          PDB, XYZ, bundles, graph readers
@@ -197,7 +222,7 @@ ChronoCell-5D/
 │   ├── build_graph.py, train.py, benchmark.py, colab.py, demo_states.py
 │   └── data/               hg38 annotation, 19,386 genes (UCSC RefSeq Select)
 ├── ui/                     the six pages, sidebar and shared helpers
-├── tests/                  114 tests, including end-to-end runs of every page
+├── tests/                  117 tests, including end-to-end runs of every page
 ├── validation/             accuracy against real microscopy
 ├── colab/                  GPU reconstruction notebook
 ├── coordinates/            drop-in folder for your structures

@@ -224,3 +224,80 @@ def test_pdf_dossier_prints_both_scores_separately():
     assert pdf[:4] == b"%PDF" and len(pdf) > len(pdf_report.build(ctx, "ok", "offline"))   # the section adds content
     assert scores["contact_map_fit"]["value"] == 0.9
     assert "not measured on this" in (scores["microscopy_accuracy"] or {"scope": "not measured on this"})["scope"]
+
+
+# ---------------------------------------------------------------- REST API handlers and run log (chronocell.api)
+def _planted_counts(n: int = 40, seed: int = 0):
+    """Counts from a planted population (Gaussian chains): P(d < r_c) scaled to reads."""
+    d = _population(n=n, cells=4000, seed=seed)
+    f = (d < 1.0).mean(0)
+    i, j = np.triu_indices(n, 1)
+    cnt = np.random.default_rng(seed).poisson(f[i, j] * 400).astype(float)
+    keep = cnt > 0
+    return {"i": i[keep].tolist(), "j": j[keep].tolist(), "count": cnt[keep].tolist()}, n
+
+
+def test_api_reconstruct_population_reports_two_scores_and_logs_without_raw_data(tmp_path):
+    from chronocell import api
+    contacts, n = _planted_counts()
+    log = api.AuditLog(tmp_path / "runs.jsonl")
+    out = api.reconstruct({"contacts": contacts, "n_beads": n, "model": "population", "b0_nm": 50.0,
+                           "include": ["median_distance"]}, log=log)
+    assert out["model"] == "population_v3_3" and np.asarray(out["coords_nm"]).shape == (n, 3)
+    assert np.asarray(out["median_distance_nm"]).shape == (n, n)
+    assert out["accuracy"]["contact_map_fit"]["value"] > 0.8
+    assert "not evidence of accuracy" in out["accuracy"]["contact_map_fit"]["definition"]
+    mic = out["accuracy"]["microscopy_accuracy"]
+    assert mic is None or "not measured on this structure" in mic["scope"]          # benchmark never passed off as local
+    assert out["metrics"]["n_beads"] == n and len(out["input_sha256"]) == 64
+    rec = log.read()
+    assert len(rec) == 1 and rec[0]["status"] == "ok" and rec[0]["input_sha256"] == out["input_sha256"]
+    assert rec[0]["parameters"]["contacts"]["i"].startswith("<array")                 # sizes only, no raw data
+    assert str(contacts["count"][:3])[1:-1] not in (tmp_path / "runs.jsonl").read_text()
+
+
+def test_api_single_structure_metrics_and_benchmark(tmp_path):
+    from chronocell import api
+    contacts, n = _planted_counts(n=30, seed=4)
+    log = api.AuditLog(tmp_path / "runs.jsonl")
+    out = api.reconstruct({"contacts": contacts, "n_beads": n, "model": "single", "b0_nm": 50.0}, log=log)
+    assert out["model"] == "single_structure_v3_2" and "final_loss" in out["telemetry"]
+    m = api.metrics({"coords_nm": out["coords_nm"], "b0_nm": 50.0, "contacts": contacts}, log=log)
+    assert m["metrics"]["rg_nm"] > 0 and m["accuracy"]["microscopy_accuracy"] is None      # input: no benchmark claim
+    from chronocell import accuracy as ACC
+    if ACC.load_benchmark():
+        b = api.benchmark(log=log)
+        assert b["summary"]["ensemble_v3_3"] == ACC.load_benchmark()["models"]["ensemble_v3_3"]["overall_percent_of_ceiling"]
+    assert [r["endpoint"] for r in log.read()][:2] == ["/api/v1/reconstruct", "/api/v1/metrics"]
+
+
+def test_api_rejects_bad_requests_and_logs_them(tmp_path):
+    from chronocell import api
+    log = api.AuditLog(tmp_path / "runs.jsonl")
+    bad = [{"contacts": {"i": [0], "j": [1]}},                                             # missing counts
+           {"contacts": {"i": [0, 1], "j": [5, 2], "count": [1, -2]}, "n_beads": 6},       # negative count
+           {"contacts": {"i": [0], "j": [9], "count": [1]}, "n_beads": 5},                 # index out of range
+           {"contacts": {"i": [0], "j": [1], "count": [1]}, "n_beads": 500, "model": "population"},   # too large
+           {"contacts": {"i": [0], "j": [1], "count": [1]}, "n_beads": 10, "model": "magic"}]
+    for payload in bad:
+        with pytest.raises(api.RequestError):
+            api.reconstruct(payload, log=log)
+    with pytest.raises(api.RequestError):
+        api.metrics({"coords_nm": [[0, 0, 0]]}, log=log)
+    with pytest.raises(api.RequestError):                                                  # model-level ValueError -> 400
+        api.reconstruct({"contacts": {"i": [0, 5], "j": [9, 12], "count": [1, 1]}, "n_beads": 20}, log=log)
+    assert [r["status"] for r in log.read()] == ["rejected"] * 7
+    with pytest.raises(api.RequestError):                                                  # not a JSON object
+        api.reconstruct(["not", "an", "object"], log=log)
+
+
+def test_api_fastapi_wrapper_when_installed(tmp_path):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+    from chronocell import api
+    client = TestClient(api.create_app(api.AuditLog(tmp_path / "runs.jsonl")))
+    contacts, n = _planted_counts(n=24, seed=5)
+    r = client.post("/api/v1/reconstruct", json={"contacts": contacts, "n_beads": n})
+    assert r.status_code == 200 and r.json()["model"] == "population_v3_3"
+    assert client.post("/api/v1/reconstruct", json={"contacts": {}}).status_code == 400

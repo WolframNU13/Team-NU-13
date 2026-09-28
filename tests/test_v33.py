@@ -170,3 +170,57 @@ def test_confinement_term_keeps_the_fold_inside_the_nucleus():
     r_held = np.linalg.norm(held.coords_nm - held.coords_nm.mean(0), axis=1).max()
     assert r_held < 0.75 * r_free
     assert free.history["confine"][-1] == 0.0 and held.history["confine"][-1] >= 0.0
+
+
+# ---------------------------------------------------------------- app: population model, scores, probe, slicing
+def test_app_population_model_two_scores_probe_and_slicing(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    from streamlit.testing.v1 import AppTest
+    import ui.common as C
+    import ui.states_panel as SP
+    monkeypatch.setattr(C, "SLOT_ROOT", tmp_path / "empty")
+    monkeypatch.setattr(SP, "SLOT_ROOT", tmp_path / "empty")
+    monkeypatch.setattr(SP, "DEMO_ROOT", tmp_path / "demo")
+    at = AppTest.from_file(str(Path(__file__).resolve().parent.parent / "app.py"), default_timeout=900)
+    at.run()
+    ok = lambda: not at.exception and "cc-card-warn" not in "".join(m.value for m in at.markdown)  # noqa: E731
+    assert ok(), [e.value for e in at.exception]
+    at.session_state["custom_window"] = (2000, 2150)
+    at.segmented_control(key="region_choice").set_value("custom").run()
+    assert ok(), [e.value for e in at.exception]
+    text = lambda: "".join(m.value for m in at.markdown)  # noqa: E731
+    assert "Accuracy · two separate scores" in text()
+    build = next(b for b in at.button if (b.label or "").startswith("Build population model"))
+    build.click().run()
+    assert ok(), [e.value for e in at.exception]
+    assert len(at.session_state["ensembles"]) == 1
+    assert any(r["Model"] == "v3.3 population" for r in at.session_state["telemetry"])
+    assert "Population model" in text() and "Microscopy accuracy" in text()
+    from chronocell import accuracy as ACC
+    bench = ACC.load_benchmark()
+    if bench:                                                   # the benchmark number shown is the stored one
+        assert f"{bench['models']['ensemble_v3_3']['overall_percent_of_ceiling']:.1f} %" in text()
+    labels = [d.label for d in at.get("download_button")]
+    assert "Population (PDB, 100 models)" in labels
+    at.toggle(key="probe_on").set_value(True).run()
+    assert ok() and "Population median (all trajectories)" in text()
+    at.toggle(key="clip_on").set_value(True).run()
+    assert ok(), [e.value for e in at.exception]
+    next(b for b in at.button if b.key == "agent_build_3d").click().run()
+    assert ok() and any((d.label or "").startswith("Research dossier") for d in at.get("download_button"))
+
+
+def test_pdf_dossier_prints_both_scores_separately():
+    from chronocell import accuracy as ACC, agent as A, genome, pdf_report, physics, synthetic
+    ch = genome.chrom("chr22")
+    b0 = physics.bond_length_for(ch.resolution)
+    ref = synthetic.build(ch, seed=7, b0=b0)
+    m = A.compute_metrics(ref.coords[2000:2150], ref.epi[2000:2150], ref.valid[2000:2150], b0, ch, 2000)
+    ctx = A.AgentContext(A.HEALTHY, True, "chr22", ch.resolution, "Custom window", "chr22:20,000,001-21,500,000",
+                         "reference", "h3k27ac", True, True, b0, m, (), (), {})
+    scores = ACC.two_scores("ensemble_v3_3", 0.9)
+    pdf = pdf_report.build(ctx, "ok", "offline", accuracy=scores)
+    assert pdf[:4] == b"%PDF" and len(pdf) > len(pdf_report.build(ctx, "ok", "offline"))   # the section adds content
+    assert scores["contact_map_fit"]["value"] == 0.9
+    assert "not measured on this" in (scores["microscopy_accuracy"] or {"scope": "not measured on this"})["scope"]

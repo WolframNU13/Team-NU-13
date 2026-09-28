@@ -180,7 +180,9 @@ def fit_ensemble(freq: np.ndarray, n_observed: np.ndarray | float | None = None,
     best, best_a = float("inf"), A.detach().clone()
     for it in range(cfg.iterations + 1):                                # last pass only evaluates
         opt.zero_grad(set_to_none=True)
-        s = ((A[ii] - A[jj]) ** 2).sum(-1)
+        gram = A @ A.T                                                  # pair variance from the Gram matrix:
+        g = torch.diagonal(gram)                                        # s_ij = G_ii + G_jj - 2 G_ij
+        s = g[ii] + g[jj] - 2.0 * gram[ii, jj]
         loss = (wt_t * (torch.log(s + 1e-12) - tgt) ** 2).mean()
         val = loss.item()
         if not np.isfinite(val):
@@ -197,6 +199,7 @@ def fit_ensemble(freq: np.ndarray, n_observed: np.ndarray | float | None = None,
         loss.backward()
         opt.step()
     history["best_loss"] = [best]
+    t_fit = time.time() - t0
 
     # 4. exact ensemble statistics
     a = best_a.cpu().numpy()
@@ -210,6 +213,7 @@ def fit_ensemble(freq: np.ndarray, n_observed: np.ndarray | float | None = None,
     contact_fit = _spearman(p_model[iu][observed], f_in[iu][observed])
 
     # 5. exact Langevin (Ornstein-Uhlenbeck) trajectories, mode by mode
+    t1 = time.time()
     lam, modes = np.linalg.eigh(cov)
     keep = lam > lam.max() * 1e-10                                      # drop the translation mode
     lam, modes = lam[keep], modes[:, keep]                              # per-axis variance of each mode
@@ -241,7 +245,8 @@ def fit_ensemble(freq: np.ndarray, n_observed: np.ndarray | float | None = None,
     np.fill_diagonal(couplings, 0.0)
     return EnsembleResult(median, p_model, cov * r_c_nm ** 2, couplings, traj, sampled, traj[-1][rep],
                           contact_fit, spread, history, time.time() - t0,
-                          asdict(cfg) | {"r_c_nm": r_c_nm, "device_used": str(dev)})
+                          asdict(cfg) | {"r_c_nm": r_c_nm, "device_used": str(dev), "fit_seconds": t_fit,
+                                         "sampling_seconds": time.time() - t1})
 
 
 def counts_to_probability(counts: np.ndarray, p_adjacent: float = 0.5) -> np.ndarray:
@@ -258,3 +263,39 @@ def counts_to_probability(counts: np.ndarray, p_adjacent: float = 0.5) -> np.nda
     if adj.size == 0:
         raise ValueError("No adjacent-bead counts to anchor the probability scale.")
     return np.clip(m * (p_adjacent / float(np.median(adj))), 0.0, 0.999)
+
+
+def fit_from_counts(ci: np.ndarray, cj: np.ndarray, cm: np.ndarray, n: int, valid: np.ndarray | None = None,
+                    b0_nm: float = 50.0, p_adjacent: float = 0.5, cfg: EnsembleConfig | None = None,
+                    progress: Callable[[int, int, dict[str, float]], None] | None = None) -> EnsembleResult:
+    """Population model from a sequencing contact list (Hi-C / Micro-C counts), e.g. an app window.
+
+    Sequencing counts are relative, so two assumptions are made explicit:
+    - Adjacent beads touch with probability `p_adjacent`, which sets the probability scale via
+      counts_to_probability. The effective number of cells is then median adjacent count / p_adjacent,
+      so a pixel with zero reads means "rarer than one in N_eff", not "never".
+    - The contact radius is chosen so adjacent beads sit b0 apart (median), which is the same length
+      anchor as the v3.2 single-structure pipeline.
+    Pairs touching an unassembled bin (valid = False) are treated as unobserved.
+    """
+    ci = np.asarray(ci, dtype=np.int64)
+    cj = np.asarray(cj, dtype=np.int64)
+    counts = np.zeros((n, n))
+    np.add.at(counts, (ci, cj), np.asarray(cm, dtype=np.float64))
+    counts = counts + counts.T
+    np.fill_diagonal(counts, 0.0)
+    adj = np.diag(counts, 1)
+    adj = adj[adj > 0]
+    if adj.size < 3:
+        raise ValueError("Too few adjacent-bead contacts to set the probability scale for a population model.")
+    p = counts_to_probability(counts, p_adjacent)
+    n_eff = float(np.median(adj)) / p_adjacent
+    if valid is not None:
+        bad = ~np.asarray(valid, bool)
+        p[bad, :] = np.nan
+        p[:, bad] = np.nan
+    r_c = b0_nm / float(gaussian_median_distance(p_adjacent, 1.0))
+    res = fit_ensemble(p, max(n_eff, 1.0), r_c_nm=r_c, cfg=cfg, progress=progress)
+    res.config.update({"input": "sequencing counts", "p_adjacent_assumed": p_adjacent, "n_effective": n_eff,
+                       "anchor_b0_nm": b0_nm})
+    return res

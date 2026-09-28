@@ -253,8 +253,8 @@ We are strict about this, and the website labels it everywhere.
   - **Absolute sizes** now match the microscopy (Lin's CCC 0.93–0.97 on the structured regions).
   - **Where it falls short:** on the weak-structure region, the simple distance rule still ranks
     pairs better (0.96 vs 0.87).
-  - **Where it runs today:** the population model runs on windows of up to a few hundred beads
-    (`chronocell/ensemble.py`) and is not yet built into the app's pages.
+  - **Where it runs today:** the population model runs in the app on windows of up to 400 beads
+    (3D structure → 03 Model & convergence → *Build population model*).
 
 Method, per-dataset numbers and limitations: [`validation/RESULTS.md`](../validation/RESULTS.md).
 

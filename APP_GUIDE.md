@@ -474,7 +474,10 @@ Design tokens (measured WCAG contrast), colour scales, `inject()` stylesheet, `p
 - **Reconstruction accuracy.** Measured against planted fractal globules, which are the only ground truth available here:
   - 400–1,600-bead windows: RMSD 0.28–0.32 R_g, distance correlation 0.96–0.97.
   - Whole chr22 with the GPU-sized initialisation: 0.32 R_g on assembled beads, r = 0.93.
-  - Accuracy on real chromatin can't be stated without imaging ground truth (e.g. chromatin tracing).
+  - **On real chromatin (v3.3):** tested against held-out chromatin tracing (Bintu et al. 2018), see
+    `validation/RESULTS.md`. Share of the reproducible folding pattern recovered:
+    - v3.2 single structure: 45 %;
+    - v3.3 population model: **85.6 %** (88 % and 91 % on structured regions, 54 % on a weak-structure region).
 - **Mirror images.** Contact data determine a structure only up to reflection.
 - **EGNN.** For a single-structure fit, EGNN refinement is equivalent to plain coordinate refinement (AUDIT.md §5). Its value needs training across many structures.
 - **Disease scenarios.** They are geometric consequences of karyotypes under a polymer model, not measured disease conformations. The "time" axis is relaxation sweeps. Parkinson's presets (22q11.2 deletion, SNCA triplication) model the structural lesion only; they say nothing about neuronal chromatin state.
@@ -737,3 +740,62 @@ The panel **🤖 ChronoAgent: Structural Genomics Interpreter** sits below the 3
 | 22 | PDF / GIF buttons failed outside a fragment rerun | `st.rerun(scope="fragment")` called during a full run | Build-then-download in the same run |
 | 23 | A header-less 3-column float CSV could be mistaken for contacts | Ambiguous column structure | Contacts need non-negative integer bins; float triples stay coordinates |
 | 24 | Drug lab opened on a drug with no effect on the demo tumour (0 %) | First drug in the list by default | The best-matching mechanism is pre-selected and marked ★; a wrong-direction drug explains itself |
+
+## 20. v3.3: population model, two accuracy scores, measuring and slicing
+
+**Why a population model?**
+- Every cell folds the same DNA differently, and Hi-C averages thousands of cells, so one 3D shape
+  cannot match the data.
+- v3.3 fits a whole *population* of chains (`chronocell/ensemble.py`), following the published
+  HIPPS/DIMES maximum-entropy method. It then draws 100 exact Langevin trajectories from that
+  population.
+- On real microscopy it recovers 85.6 % of the reproducible folding pattern; v3.2 recovered 45 %
+  (`validation/RESULTS.md`).
+
+**How to use it** (3D structure page):
+1. Pick **05 Custom** as the region and narrow the window to **400 beads or fewer** (Start / End Mb).
+2. Open **03 Model & convergence** and find **Population model (v3.3)**. Click **Build population
+   model** (about 10 s for 150 beads and 20 s for 300 on a CPU).
+3. The structure switch above the view now offers **Population model**. The view shows the most
+   typical member of the population.
+4. **Adjacent-bead contact probability** is an assumption. Sequencing counts are relative, so one
+   number must be chosen. It changes the probability scale only; lengths stay anchored to b₀.
+
+**The two accuracy scores** (shown in 03, the PDF dossier and the JSON report; never mixed):
+
+| Score | What it is | What it is not |
+|---|---|---|
+| **Contact-map fit** | Agreement with *this window's* input contacts (Spearman ρ) | Evidence the 3D model is right: any good optimiser fits its own input |
+| **Microscopy accuracy** | The *method's* benchmark on held-out imaging data (% of the reproducible structure) | A measurement on your window. Your data has no imaging ground truth. |
+
+**Measure (distance probe):**
+- Beside **Display** above the view, open **Measure**, switch on **Distance probe** and enter two
+  bead numbers. Hover a bead to see its number.
+- The view marks both beads and the line between them.
+- The table gives:
+  - the distance in the displayed structure;
+  - the separation along the DNA;
+  - with the population model: the population median, the middle 50 % of cells, and the contact
+    probability.
+
+**Slicing plane (Display → Slicing plane):** hides everything beyond a plane (x, y or z, at a chosen
+% of the fold's extent) so you can look inside the fold. A translucent sheet marks the plane.
+
+**Execution telemetry (03):**
+- Every reconstruction run this session is listed per stage: time, ms per bead, device, final loss
+  and contact-map fit.
+- The times are real wall-clock measurements.
+
+**Exports:**
+- With the population model shown, **04 Export** adds *Population (PDB, 100 models)*: a multi-model
+  PDB file that molecular viewers play as a series.
+- The JSON report gains an `accuracy` block with both scores, and a `population_model` block.
+
+**Limits:**
+- Population members are Gaussian chains with no excluded volume, so one member can show bead
+  overlaps. Read the population statistics.
+- Windows are capped at 400 beads because the cost grows with N².
+- The benchmark uses imaging-derived contacts. A direct Hi-C → imaging test is still to do.
+
+**New command-line option:** `python -m chronocell.build_graph ... --balance` ICE-balances the contact
+map (`chronocell/normalize.py`).

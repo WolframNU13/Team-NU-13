@@ -507,3 +507,49 @@ Made by Claude (Claude Code, Claude Opus 5.5); requested by Shivoham Pandey.
 - **`validation/TUNING.md` (new):** every practice-set experiment with its numbers, including the
   abandoned ones.
 - **Tests: 112 passing** (4 new: ICE ×2, bend/confinement ×2). README count updated.
+
+### Phase 3 — user interface (20:39)
+
+Made by Claude (Claude Code, Claude Opus 5.5); requested by Shivoham Pandey.
+
+- **Population model in the app** (3D structure → 03 Model & convergence → *Build population model*):
+  - windows up to 400 beads; built from the window's sequencing counts (`ensemble.fit_from_counts`);
+  - the adjacent-bead contact probability is an explicit user-visible assumption, and lengths are
+    anchored to b₀;
+  - *Population model* joins the structure switch; the view shows the representative member;
+  - a note explains that members have no excluded volume;
+  - multi-model PDB export of the 100 structures.
+- **Speed-up:** the ensemble loss now uses the Gram matrix (A Aᵀ) instead of a (pairs × N) difference
+  tensor. 300 beads went from more than 10 min to 22 s.
+  - The held-out validation was re-run: the exact ensemble is unchanged (85.6 %).
+  - The 100-trajectory sample moved from 85.7 % to 85.6 % (A549 from 91.5 % to 91.3 %) through
+    sampling round-off. `validation/results.json` and `RESULTS.md` updated; the earlier numbers are
+    left as logged above.
+- **Two separate accuracy scores**, new `chronocell/accuracy.py`:
+  - Contact-map fit, live on the window.
+  - Microscopy accuracy, the method benchmark read from `validation/results.json` and labelled "not
+    measured on this window".
+  - Shown in 03, the PDF dossier (new section) and the JSON report (`accuracy` block).
+- **Distance probe** (*Measure*): two beads by number. It shows the distance in the displayed
+  structure, the separation along the DNA and the loci. With the population model it also gives the
+  population median, the middle 50 % of cells and the contact probability. The pair is marked in 3D.
+  - **Limitation, stated honestly:** beads are picked by number, not by clicking, because the app's
+    3D chart widget does not return click events.
+- **Slicing plane** (*Display*): x, y or z normal at a % of the fold's extent. Everything beyond it
+  is hidden (tube faces, beads, line, context), and a translucent sheet marks the plane.
+- **Execution telemetry table:** every reconstruction this session, per stage, with wall-clock
+  time, ms per bead, device, final loss and contact-map fit. It uses real measurements.
+- **Loss-convergence charts:** the existing v3.2 loss chart, plus a new chart for the population
+  fit.
+- **Docs:** APP_GUIDE §10 (real-microscopy accuracy) and new §20 (how to use v3.3); a Guide-page
+  section "How accurate is it? Two scores, never mixed"; README and OVERVIEW updated. Version
+  string changed to 3.3.
+- **Verified in the running app** (in-app browser, chr22 30.5–32.0 Mb, 150 beads):
+  - the population model builds;
+  - contact-map fit 0.867; microscopy benchmark 85.6 % with its scope note;
+  - the probe gives 196 nm in the displayed structure and a population median of 327 nm (IQR
+    235–428 nm);
+  - the slicing plane cuts the tube;
+  - telemetry rows appear.
+- **Tests: 114 passing** (2 new: end-to-end app test of the population model, scores, probe,
+  slicing and dossier; and the PDF two-score section).

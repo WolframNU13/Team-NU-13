@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![Streamlit](https://img.shields.io/badge/streamlit-1.50%2B-FF4B4B?logo=streamlit&logoColor=white)
 ![PyTorch](https://img.shields.io/badge/pytorch-2.2%2B-EE4C2C?logo=pytorch&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-112%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-114%20passing-2ea44f)
 
 <p align="center">
   <img src="docs/images/fold.png" alt="3D fold of the long arm of human chromosome 22, coloured from one end to the other" width="760">
@@ -42,7 +42,7 @@ The fold can't be photographed directly across a whole chromosome. Experiments s
 
 | Page | What it does |
 |---|---|
-| **01 · 3D structure** | Rotate the fold, and read its size, span and activity signal. Colour it by position, activity mark, A/B compartment or TAD neighbourhood. Measure it with polymer physics, rebuild it from contacts, and export it. |
+| **01 · 3D structure** | Rotate the fold, and read its size, span and activity signal. Colour it by position, activity mark, A/B compartment or TAD neighbourhood. Measure it with polymer physics, rebuild it from contacts as one structure (v3.2) or as a **population of 100 trajectories (v3.3)**, measure distances between any two beads, slice the fold open with a cutting plane, and export it. Shows two accuracy scores, never mixed. |
 | **02 · 4D dynamics** | Play time courses, or morph Healthy → Disease → Senescent. Simulate rearrangements (22q11.2 deletion, the Philadelphia chromosome, the Ewing sarcoma fusion, SNCA triplication), and export movies and GIFs. |
 | **03 · Compare** | Two states side by side, with linked cameras. Every piece of DNA is coloured by how far it moved, alongside the genes in the most-changed regions. |
 | **04 · Drug lab** | Apply an epigenetic drug mechanism (EZH2/EED, HDAC or BET inhibitor, or a loop stabiliser), drag the dose slider, and measure how far the fold moves back toward healthy. |
@@ -127,9 +127,9 @@ DNA = further apart" trend, relative to how well the experiment agrees with itse
   regions, raw rank agreement beats a distance-only guess.
 - **Where it falls short.** On the weak-structure region, raw ranking stays below that guess
   (0.87 vs 0.96).
-- **Where it runs today.** The population model is `chronocell/ensemble.py` and runs on windows of
-  up to a few hundred beads. It is not yet built into the app's pages; the app's whole-chromosome
-  view still uses the v3.2 single structure.
+- **Where it runs today.** The population model is `chronocell/ensemble.py`. In the app, it runs
+  under 3D structure → 03 Model & convergence, on windows of up to 400 beads. Whole-chromosome
+  reconstruction still uses the v3.2 single structure.
 
 Method, full numbers and limitations: [`validation/RESULTS.md`](validation/RESULTS.md). Rerun with `python validation/validate_tracing.py`.
 
@@ -166,7 +166,7 @@ python -m chronocell.train --graph graph.npz --out predicted_coords.npz
 python -m chronocell.benchmark                                   # accuracy on synthetic structures
 python -m chronocell.demo_states demo_states                     # write the demo patients as files
 python validation/validate_tracing.py                            # accuracy against real microscopy
-python -m pytest                                                 # 112 tests
+python -m pytest                                                 # 114 tests
 ```
 
 ## Project layout
@@ -178,6 +178,9 @@ ChronoCell-5D/
 │   ├── genome.py           GRCh38 chromosomes, bands, gaps, bins
 │   ├── physics.py          polymer physics: R_g, scaling, crowding, losses
 │   ├── egnn.py             E(3)-equivariant GNN and structure fitting
+│   ├── ensemble.py         v3.3 population model: max-entropy ensemble + exact Langevin trajectories
+│   ├── accuracy.py         the two separate accuracy scores (contact-map fit, microscopy benchmark)
+│   ├── normalize.py        ICE contact-map balancing
 │   ├── synthetic.py        synthetic reference model
 │   ├── features.py         GC / signal binning, contact extraction
 │   ├── formats.py          PDB, XYZ, bundles, graph readers
@@ -194,7 +197,7 @@ ChronoCell-5D/
 │   ├── build_graph.py, train.py, benchmark.py, colab.py, demo_states.py
 │   └── data/               hg38 annotation, 19,386 genes (UCSC RefSeq Select)
 ├── ui/                     the six pages, sidebar and shared helpers
-├── tests/                  112 tests, including end-to-end runs of every page
+├── tests/                  114 tests, including end-to-end runs of every page
 ├── validation/             accuracy against real microscopy
 ├── colab/                  GPU reconstruction notebook
 ├── coordinates/            drop-in folder for your structures

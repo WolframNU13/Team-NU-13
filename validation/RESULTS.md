@@ -45,9 +45,9 @@ in `validation/results.json` and `validation/results_practice.json`.
 | Dataset (cells) | v3.2 single structure | **v3.3 population model** | 100 sampled trajectories | No 3D (direct inversion) | Ceiling ρ |
 |---|---|---|---|---|---|
 | IMR90 chr21:28–30 Mb (4,832) | 39 % | **88 %** | 88 % | 81 % | 0.98 |
-| A549 chr21:28–30 Mb (3,941) | 54 % | **91 %** | 92 % | 88 % | 0.95 |
+| A549 chr21:28–30 Mb (3,941) | 54 % | **91 %** | 91 % | 88 % | 0.95 |
 | IMR90 chr21:18–20 Mb (1,277) | 35 % | **54 %** (±11 points across splits) | 53 % | 42 % | 0.25 |
-| **Overall (Σ model / Σ ceiling)** | **45 %** | **85.6 %** | **85.7 %** | 79.7 % | |
+| **Overall (Σ model / Σ ceiling)** | **45 %** | **85.6 %** | **85.6 %** | 79.7 % | |
 
 The unweighted mean of the three percentages is 78 %.
 

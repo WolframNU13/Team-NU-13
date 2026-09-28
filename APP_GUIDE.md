@@ -606,7 +606,7 @@ The panel **🤖 ChronoAgent: Structural Genomics Interpreter** sits below the 3
 - It is redacted from error messages and never written to the report.
 - LLM output is rendered as Markdown only (no HTML), with remote images stripped.
 
-**Output sections:** Biophysical diagnosis · Therapeutic strategy (research hypotheses) · Expression & accessibility insights · Answer to your question.
+**Output sections:** Biophysical assessment · Therapeutic strategy (research hypotheses) · Expression & accessibility insights · Answer to your question.
 
 ---
 

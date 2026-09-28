@@ -475,3 +475,35 @@ before tuning: **85.6 %**. The weak-structure region remains far below it.
 **Found in passing, not a fix:** the requested "positive, data-fitted γ" is already how the code works
 (`physics.contact_decay` / `domains.decay_exponent` fit P(s) ~ s^-γ from data, with γ > 0). The
 negative-γ error was only in the pasted spec.
+
+### Phase 2 — physics refinements (20:07)
+
+Made by Claude (Claude Code, Claude Opus 5.5); requested by Shivoham Pandey.
+
+- **ICE balancing, new `chronocell/normalize.py`.** ICE = Iterative Correction and Eigenvector
+  decomposition (Imakaev et al., Nat Methods 2012).
+  - Works on sparse contact lists, with cooler-style defaults: ignore 2 diagonals, MAD filter, and
+    `min_nnz` re-filtering until stable.
+  - The first version did not converge on sparse maps: row-sum CV was still 5 % after 500
+    iterations. Two causes:
+    - kept bins whose partners had been masked;
+    - a stopping rule stricter than cooler's.
+  - After fixing both, the synthetic chr22 map converges in 1,470 iterations (about 1 s). On a
+    planted-bias test the bias is recovered with r = 0.999.
+  - `balanced_contacts()` returns balanced (ci, cj, cm). `python -m chronocell.build_graph --balance`
+    uses it.
+- **Bending stiffness and nuclear-envelope confinement** added to `egnn.FitConfig` (`lambda_bend`,
+  `bend_cos0`, `lambda_confine`, `confine_radius_nm`), with NumPy twins `physics.loss_bend` and
+  `physics.loss_confinement`.
+  - Measured on the practice sets: no accuracy change beyond ±1–2 points. Confinement is inactive at
+    realistic radii.
+  - **Both are off by default.** v3.2 behaviour is unchanged.
+  - They are not added to the Gaussian population model, because the fitted couplings absorb any
+    quadratic prior.
+- **Positive, data-fitted γ:** already the case (see the Phase 1 note). No change needed.
+- **Wording:** ChronoAgent's "Biophysical diagnosis" heading renamed to "Biophysical assessment"
+  (agent, PDF output, test, APP_GUIDE, OVERVIEW), to avoid a medical-diagnosis reading. The exports
+  already say "Research use only — not a clinical diagnostic" and contain no compliance claims.
+- **`validation/TUNING.md` (new):** every practice-set experiment with its numbers, including the
+  abandoned ones.
+- **Tests: 112 passing** (4 new: ICE ×2, bend/confinement ×2). README count updated.

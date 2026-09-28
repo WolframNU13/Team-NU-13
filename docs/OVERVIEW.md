@@ -194,7 +194,7 @@ A built-in plain-language manual, the 2-minute version of this document. Its but
 
 - It uses the exact numbers on screen: size, compaction, crowding, activity, genes, neighbourhoods and your latest drug-lab result.
 - It writes four sections:
-  1. **Biophysical diagnosis**: what the shape means (for example, "decompacted, open domains").
+  1. **Biophysical assessment**: what the shape means (for example, "decompacted, open domains").
   2. **Therapeutic strategy (research hypotheses)**: which drug mechanisms would be worth testing, and why.
   3. **Expression & accessibility insights**: which genes are likely switched on or off.
   4. **Answer to your question**: anything you type.

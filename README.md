@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![Streamlit](https://img.shields.io/badge/streamlit-1.50%2B-FF4B4B?logo=streamlit&logoColor=white)
 ![PyTorch](https://img.shields.io/badge/pytorch-2.2%2B-EE4C2C?logo=pytorch&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-108%20passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-112%20passing-2ea44f)
 
 <p align="center">
   <img src="docs/images/fold.png" alt="3D fold of the long arm of human chromosome 22, coloured from one end to the other" width="760">
@@ -166,7 +166,7 @@ python -m chronocell.train --graph graph.npz --out predicted_coords.npz
 python -m chronocell.benchmark                                   # accuracy on synthetic structures
 python -m chronocell.demo_states demo_states                     # write the demo patients as files
 python validation/validate_tracing.py                            # accuracy against real microscopy
-python -m pytest                                                 # 108 tests
+python -m pytest                                                 # 112 tests
 ```
 
 ## Project layout
@@ -194,7 +194,7 @@ ChronoCell-5D/
 │   ├── build_graph.py, train.py, benchmark.py, colab.py, demo_states.py
 │   └── data/               hg38 annotation, 19,386 genes (UCSC RefSeq Select)
 ├── ui/                     the six pages, sidebar and shared helpers
-├── tests/                  108 tests, including end-to-end runs of every page
+├── tests/                  112 tests, including end-to-end runs of every page
 ├── validation/             accuracy against real microscopy
 ├── colab/                  GPU reconstruction notebook
 ├── coordinates/            drop-in folder for your structures

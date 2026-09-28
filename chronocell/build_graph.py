@@ -6,6 +6,8 @@ Build the chr22 graph from the three raw inputs.
 
     python -m chronocell.build_graph --synthetic --out graph_synthetic.npz   # no external files
 
+Add --balance to ICE-balance the contacts (chronocell.normalize) before saving.
+
 Requires `pyfaidx`, `pyBigWig` and `cooler` for real inputs (imported only when used).
 Output keys: gc, epi, valid (N,), ci, cj, cm (upper-triangle contacts), chrom, resolution.
 """
@@ -16,11 +18,11 @@ import argparse
 
 import numpy as np
 
-from . import features, formats, genome, synthetic
+from . import features, formats, genome, normalize, synthetic
 
 
 def from_files(fasta: str, bigwig: str, mcool: str, chrom: str = genome.CHROM,
-               resolution: int = genome.RESOLUTION) -> tuple[np.ndarray, ...]:
+               resolution: int = genome.RESOLUTION, balance: bool = False) -> tuple[np.ndarray, ...]:
     import cooler
     import pyBigWig
     from pyfaidx import Fasta
@@ -50,7 +52,11 @@ def from_files(fasta: str, bigwig: str, mcool: str, chrom: str = genome.CHROM,
                                                pixels["bin2_id"].to_numpy() - offset,
                                                pixels["count"].to_numpy(), n_bins)
     inside = valid[ci] & valid[cj]
-    return gc, epi, valid, ci[inside], cj[inside], cm[inside]
+    ci, cj, cm = ci[inside], cj[inside], cm[inside]
+    if balance:
+        ci, cj, cm, notes = normalize.balanced_contacts(ci, cj, cm, n_bins)
+        print(notes[0])
+    return gc, epi, valid, ci, cj, cm
 
 
 def main() -> None:
@@ -59,17 +65,22 @@ def main() -> None:
     ap.add_argument("--bigwig")
     ap.add_argument("--mcool")
     ap.add_argument("--synthetic", action="store_true", help="planted fractal globule instead of files")
+    ap.add_argument("--balance", action="store_true", help="ICE-balance the contact map before saving")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     if a.synthetic:
         s = synthetic.build(seed=a.seed)
         arrays = (s.gc, s.epi, s.valid, s.ci, s.cj, s.cm)
+        if a.balance:
+            bci, bcj, bcm, notes = normalize.balanced_contacts(s.ci, s.cj, s.cm, len(s.gc))
+            arrays = (s.gc, s.epi, s.valid, bci, bcj, bcm)
+            print(notes[0])
         np.savez_compressed(a.out.replace(".npz", "_truth.npz"), coords=s.coords, units_nm=np.array(1.0))
     else:
         if not (a.fasta and a.bigwig and a.mcool):
             ap.error("--fasta, --bigwig and --mcool are required unless --synthetic is given")
-        arrays = from_files(a.fasta, a.bigwig, a.mcool)
+        arrays = from_files(a.fasta, a.bigwig, a.mcool, balance=a.balance)
     formats.write_graph_npz(a.out, *arrays)
     gc, _, valid, ci, *_ = arrays
     print(f"wrote {a.out}: {len(gc):,} bins ({int(valid.sum()):,} assembled), {len(ci):,} contacts")

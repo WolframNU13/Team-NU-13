@@ -100,3 +100,73 @@ def test_counts_to_probability_anchors_adjacent_pairs():
     p = E.counts_to_probability(counts, p_adjacent=0.5)
     assert np.median(np.diag(p, 1)) == pytest.approx(0.5)
     assert p.max() < 1.0 and p.min() >= 0.0
+
+
+# ---------------------------------------------------------------- ICE balancing (chronocell.normalize)
+def _biased_map(n: int = 200, seed: int = 0, drop_bin: int | None = None):
+    """Circulant (equal-visibility) true map times planted per-bin biases, Poisson-sampled."""
+    from chronocell import normalize as N  # noqa: F401
+    rng = np.random.default_rng(seed)
+    i, j = np.triu_indices(n, 1)
+    sep = np.minimum(j - i, n - (j - i))
+    true = 100.0 / sep ** 1.1
+    bias = np.exp(rng.normal(0.0, 0.4, n))
+    obs = rng.poisson(bias[i] * bias[j] * true * 50).astype(float) / 50
+    if drop_bin is not None:                                   # an (almost) empty bin
+        obs[(i == drop_bin) | (j == drop_bin)] = 0.0
+        obs[(i == drop_bin) & (j == drop_bin + 1)] = 1.0
+    return i, j, obs, true, bias
+
+
+def test_ice_recovers_planted_biases_and_equalises_rows():
+    from chronocell import normalize as N
+    i, j, obs, true, bias = _biased_map()
+    res = N.ice_balance(i, j, obs, 200, min_nnz=5)
+    assert res.converged and res.row_sum_cv < 0.01
+    assert np.corrcoef(np.log(res.bias), np.log(bias))[0, 1] > 0.99
+    ok = obs > 0
+    assert np.corrcoef(np.log(res.values[ok]), np.log(true[ok]))[0, 1] > \
+        np.corrcoef(np.log(obs[ok]), np.log(true[ok]))[0, 1] + 0.05          # balancing removes the bias
+
+
+def test_ice_masks_empty_bins_instead_of_inflating_them():
+    from chronocell import normalize as N
+    i, j, obs, *_ = _biased_map(drop_bin=50)
+    res = N.ice_balance(i, j, obs, 200, min_nnz=5)
+    assert res.masked[50] and np.isnan(res.bias[50]) and res.converged
+    ci, cj, cm, notes = N.balanced_contacts(i, j, obs, 200, min_nnz=5)
+    assert not np.any((ci == 50) | (cj == 50)) and np.all(cm > 0) and "converged" in notes[0]
+    assert np.median(cm) == pytest.approx(np.median(obs[(obs > 0) & (i != 50) & (j != 50)]), rel=1e-6)
+    with pytest.raises(ValueError):
+        N.ice_balance([0], [1], [-1.0], 5)
+
+
+# ---------------------------------------------------------------- bending stiffness / nuclear confinement
+def test_bend_and_confinement_losses_match_their_numpy_twins():
+    import torch
+    from chronocell import egnn, physics
+    x = np.cumsum(np.random.default_rng(0).normal(size=(60, 3)), axis=0) * 50.0
+    xt = torch.tensor(x / 50.0)
+    assert egnn.bend_loss(xt, 0.2).item() == pytest.approx(physics.loss_bend(x, 0.2), rel=1e-6)
+    assert egnn.confinement_loss(xt, 3.0).item() == pytest.approx(physics.loss_confinement(x, 150.0, 50.0), rel=1e-6)
+    straight = np.stack([np.arange(10.0), np.zeros(10), np.zeros(10)], axis=1)
+    assert physics.loss_bend(straight, 1.0) == pytest.approx(0.0)
+    assert physics.loss_confinement(straight, 100.0) == 0.0
+
+
+def test_confinement_term_keeps_the_fold_inside_the_nucleus():
+    from chronocell import egnn, physics
+    rng = np.random.default_rng(1)
+    truth = np.cumsum(rng.normal(size=(80, 3)), axis=0) * 50.0
+    ci, cj, d = physics.neighbor_pairs(truth, 120.0, min_sep=1)
+    cm = np.maximum(1.0, 50.0 * (50.0 / np.maximum(d, 1.0)) ** 3)
+    feats = egnn.node_features(np.full(80, 0.42), np.zeros(80), np.ones(80, bool))
+    base = egnn.FitConfig(prefit_epochs=200, refine_epochs=0, device="cpu")
+    free = egnn.fit_structure(80, feats, ci, cj, cm, base, b0=50.0)
+    r_free = np.linalg.norm(free.coords_nm - free.coords_nm.mean(0), axis=1).max()
+    cfg = egnn.FitConfig(prefit_epochs=200, refine_epochs=0, device="cpu", lambda_confine=50.0,
+                         confine_radius_nm=0.5 * r_free)
+    held = egnn.fit_structure(80, feats, ci, cj, cm, cfg, b0=50.0)
+    r_held = np.linalg.norm(held.coords_nm - held.coords_nm.mean(0), axis=1).max()
+    assert r_held < 0.75 * r_free
+    assert free.history["confine"][-1] == 0.0 and held.history["confine"][-1] >= 0.0

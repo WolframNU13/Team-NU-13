@@ -319,3 +319,125 @@ this machine's GitHub login has no access to the renamed repository.
 
 Contributors to the ideas behind these changes: _______________ (the requester directed the cleanup;
 fill in if others were involved).
+
+## 28 September 2026 — reconstruction accuracy work (live log)
+
+Made by Claude (Claude Code, Claude Opus 5.5); requested by Shivoham Pandey. Branch
+`feat/microscopy-accuracy-v3.3`, created from `chore/hackathon-cleanup` at `124ed41` (which contains
+`main` plus the cleanup commit).
+
+**Goal set by the requester:** raise the accuracy measured against real microscopy (currently 36–54 %
+of the experiment's own reproducibility, about 43 % on average) towards 80–90 %.
+
+**Rules fixed before any tuning, so the final number is credible:**
+- **Practice data (approved by the requester):** tuning uses only Bintu et al. datasets that were never part of the reported
+  validation: K562 chr21:28–30 Mb, HCT116 chr21:28–30 Mb (untreated and 6 h auxin), and
+  HCT116 chr21:34–37 Mb (untreated). The IMR90 cell-cycle set is excluded because it shares cell
+  line and region with a test set.
+- **Test data:** the three reported datasets (IMR90 chr21:28–30 Mb, IMR90 chr21:18–20 Mb,
+  A549 chr21:28–30 Mb) stay untouched until the final run.
+- **Headline number:** Σ model / Σ ceiling of the trend-removed Spearman ρ over the three test
+  datasets, averaged over 3 random splits. This is the ceiling-weighted average of the per-dataset
+  ratios, so the noisy 18–20 Mb set (ceiling 0.25) cannot dominate it. Per-dataset ratios, raw ρ,
+  the genomic-distance baseline and Lin's CCC are reported alongside, favourable or not.
+- **What the model sees:** only half A's contact frequencies (< 150 nm), as before.
+
+**18:29 · Branch created.**
+
+**18:35 · Branch renamed** from `feat/reconstruction-accuracy` to `feat/microscopy-accuracy-v3.3`, at the
+requester's suggestion. It stays based on the cleanup commit so the restructured README is kept.
+
+**Direction from the requester (18:35):**
+- extend v3.2; keep all 101 tests passing;
+- report two clearly separated scores:
+  - *Contact map fit*: agreement with the input contact data;
+  - *Independent microscopy accuracy*: against unseen imaging data;
+- Phase 1: a microscopy validation pipeline and an ensemble Langevin population solver;
+- Phase 2: physics fixes (ICE, positive fitted exponent, bending stiffness, nuclear confinement);
+- Phase 3: UI additions (distance probe, slicing plane, timing table, loss charts);
+- Phase 4: REST API and a JSON log without compliance claims.
+
+**18:29 — 18:33 · Step 1 diagnostics, practice data only** (split 0; trend-removed Spearman ρ as a
+% of each dataset's ceiling):
+
+| | K562 28–30 Mb | HCT116 28–30 Mb |
+|---|---|---|
+| Ceiling (half A vs half B) | 0.983 | 0.930 |
+| Contact frequencies alone, no 3D (f^-1/3) | 88 % | 82 % |
+| Best single 3D structure, from half A's *true* medians | 63 % | 56 % |
+| Current pipeline: shortest-path MDS start only | 74 % | 75 % |
+| Current pipeline: after gradient fit | 37 % | 53 % |
+| Current pipeline: full (with EGNN) | 37 % | 55 % |
+
+Reading:
+- the input carries enough information for more than 80 %;
+- a single 3D structure is capped at roughly 60–75 %;
+- the gradient stage of the current pipeline loses accuracy relative to its own starting point.
+
+This motivates a population (ensemble) model.
+
+**18:36 — 18:48 · First maximum-entropy Langevin ensemble (scratch prototype, practice data, split 0).**
+
+How it works:
+- 100 replica chains run overdamped Langevin dynamics as Gaussian chains, with soft excluded volume.
+- Each pair of beads has a potential −ε_ij·φ(d), with φ a smooth step at the 150 nm contact radius.
+- ε_ij is updated until the ensemble's contact frequency matches the input.
+- The prediction is the ensemble's median distance.
+
+This is a maximum-entropy inversion (the idea behind Zhang & Wolynes 2015), with lengths in units of
+the contact radius. Results, untuned:
+
+| | HCT116 28–30 Mb | K562 28–30 Mb |
+|---|---|---|
+| Trend-removed ρ vs half B (% of ceiling) | 0.694 (74.7 %) | 0.797 (81.1 %) |
+| Raw ρ | 0.916 | 0.963 |
+| Lin's CCC (nm) | 0.81 | 0.77 |
+| Model / real scale | 1.01 | 1.16 |
+| Contact-map fit ρ (ensemble vs input frequencies) | 0.794 | 0.754 |
+
+Speed: about 5 ms per Langevin step on this CPU (float32, 100 replicas × 65 beads), about 35 s per
+dataset.
+
+**18:53 — 18:57 · Langevin prototype dropped.**
+- On HCT116 + auxin it reached only 19 % of the ceiling, although contact frequencies alone give 82 %.
+- Cause: the simulated time (about 60 units) is shorter than the chain's relaxation time (about 140),
+  so long-range contacts never equilibrated. The model's contact frequencies ran about 50 % above the
+  input.
+- Overall on practice data: 63 %.
+
+**18:57 — 19:10 · New population model: `chronocell/ensemble.py`.**
+- **Model:** a maximum-entropy Gaussian polymer ensemble. This approach is prior art, not a novel
+  method: HIPPS/DIMES, Shi & Thirumalai, PRX 2019 and Nat Commun 2023.
+  - Each contact frequency is inverted to a pair spread through the Maxwell distribution.
+  - A valid covariance is fitted by weighted least squares, weighting each pair by its binomial
+    reliability.
+  - Statistics are exact.
+- **Trajectories:** 100 Langevin trajectories are sampled exactly (Ornstein–Uhlenbeck, mode by mode)
+  from the fitted spring network.
+- **Settings:** frozen after tuning on practice data only. Tested: 1,500 vs 4,000 iterations,
+  binomial vs uniform weights, splits 0 and 1. The spread across settings was under 1 point.
+- **Tests:** `tests/test_v33.py`, 7 tests on planted populations: ideal chain, partial loop, missing
+  pairs, exact Langevin sampling, input checks. All pass.
+- **`validation/validate_tracing.py`:**
+  - now scores v3.2, the v3.3 ensemble (exact and 100 trajectories) and a no-3D reference;
+  - reports contact-map fit and microscopy accuracy separately;
+  - adds a `--practice` option.
+
+**Practice-set results** (`validation/results_practice.json`; 4 datasets × 3 splits; trend-removed
+Spearman ρ as a % of the ceiling, Σ model / Σ ceiling):
+
+| | K562 | HCT116 | HCT116 + auxin | HCT116 34–37 Mb | **Overall** |
+|---|---|---|---|---|---|
+| v3.2 single structure | 31–39 % | 52–58 % | 47–50 % | 51–58 % | **48.3 %** |
+| v3.3 ensemble (exact) | 92–93 % | 91–92 % | 87–90 % | 95–96 % | **92.0 %** |
+| v3.3, 100 trajectories | 91–92 % | 92 % | 88–89 % | 95 % | **91.9 %** |
+| No 3D (direct inversion) | | | | | **87.5 %** |
+
+- Contact-map fit of the ensemble: 0.97–0.99.
+- Raw ρ of the ensemble (0.92–0.98) now beats the genomic-distance baseline (0.77–0.93) on every
+  practice set. v3.2 did not.
+
+**Status:** the three held-out TEST datasets have NOT been run yet. The 80–90 % question is not
+answered until they are. Next: run `python validation/validate_tracing.py` once, record the result
+here, and update `validation/RESULTS.md` whatever it shows. The full 101-test suite was not rerun for
+this commit; only new files and the validation script changed.

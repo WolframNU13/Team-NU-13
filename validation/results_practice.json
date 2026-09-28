@@ -1,0 +1,946 @@
+{
+ "summary": {
+  "datasets": {
+   "K562 chr21:28-30 Mb": {
+    "single_structure_v3_2": {
+     "microscopy_trend_removed": 0.35144227675507755,
+     "ceiling_trend_removed": 0.9845713451343867,
+     "percent_of_ceiling": 35.69495278243227,
+     "microscopy_raw_spearman": 0.7933247107899882,
+     "lin_ccc_nm": 0.09730951702326289,
+     "contact_map_fit": 0.8221938349941902,
+     "splits": 3
+    },
+    "ensemble_v3_3": {
+     "microscopy_trend_removed": 0.9087223616578767,
+     "ceiling_trend_removed": 0.9845713451343867,
+     "percent_of_ceiling": 92.29624304512365,
+     "microscopy_raw_spearman": 0.9805565863774707,
+     "lin_ccc_nm": 0.9129155744592953,
+     "contact_map_fit": 0.9912206375325067,
+     "splits": 3
+    },
+    "ensemble_v3_3_100_trajectories": {
+     "microscopy_trend_removed": 0.9047551720193686,
+     "ceiling_trend_removed": 0.9845713451343867,
+     "percent_of_ceiling": 91.89330732511581,
+     "microscopy_raw_spearman": 0.9791094770683387,
+     "lin_ccc_nm": 0.9041111082209605,
+     "contact_map_fit": 0.9912206375325067,
+     "splits": 3
+    },
+    "reference_direct_inversion_no_3d": {
+     "microscopy_trend_removed": 0.8678889142796749,
+     "ceiling_trend_removed": 0.9845713451343867,
+     "percent_of_ceiling": 88.14891054555467,
+     "microscopy_raw_spearman": 0.9702699204670419,
+     "lin_ccc_nm": 0.9067014822635037,
+     "contact_map_fit": NaN,
+     "splits": 3
+    }
+   },
+   "HCT116 chr21:28-30 Mb": {
+    "single_structure_v3_2": {
+     "microscopy_trend_removed": 0.5117171315717705,
+     "ceiling_trend_removed": 0.9323402269146195,
+     "percent_of_ceiling": 54.8852357540325,
+     "microscopy_raw_spearman": 0.809162610627415,
+     "lin_ccc_nm": 0.10260733493304978,
+     "contact_map_fit": 0.8572783340189725,
+     "splits": 3
+    },
+    "ensemble_v3_3": {
+     "microscopy_trend_removed": 0.8529172071719939,
+     "ceiling_trend_removed": 0.9323402269146195,
+     "percent_of_ceiling": 91.48132651044577,
+     "microscopy_raw_spearman": 0.9271840508781373,
+     "lin_ccc_nm": 0.8859800349584585,
+     "contact_map_fit": 0.9747969167358882,
+     "splits": 3
+    },
+    "ensemble_v3_3_100_trajectories": {
+     "microscopy_trend_removed": 0.8581519147570771,
+     "ceiling_trend_removed": 0.9323402269146195,
+     "percent_of_ceiling": 92.04278545364788,
+     "microscopy_raw_spearman": 0.9262438299898937,
+     "lin_ccc_nm": 0.8869646741163503,
+     "contact_map_fit": 0.9747969167358882,
+     "splits": 3
+    },
+    "reference_direct_inversion_no_3d": {
+     "microscopy_trend_removed": 0.7792296536854121,
+     "ceiling_trend_removed": 0.9323402269146195,
+     "percent_of_ceiling": 83.57782182842266,
+     "microscopy_raw_spearman": 0.9024212303976774,
+     "lin_ccc_nm": 0.8664196464967939,
+     "contact_map_fit": NaN,
+     "splits": 3
+    }
+   },
+   "HCT116 + auxin (cohesin depleted) chr21:28-30 Mb": {
+    "single_structure_v3_2": {
+     "microscopy_trend_removed": 0.48245672893678654,
+     "ceiling_trend_removed": 0.9819318583621657,
+     "percent_of_ceiling": 49.133422531122534,
+     "microscopy_raw_spearman": 0.8181481488230008,
+     "lin_ccc_nm": 0.0819846594567921,
+     "contact_map_fit": 0.8617208522212255,
+     "splits": 3
+    },
+    "ensemble_v3_3": {
+     "microscopy_trend_removed": 0.8708139996583052,
+     "ceiling_trend_removed": 0.9819318583621657,
+     "percent_of_ceiling": 88.68375053140633,
+     "microscopy_raw_spearman": 0.9587135617075159,
+     "lin_ccc_nm": 0.7961838428891627,
+     "contact_map_fit": 0.9884355073086452,
+     "splits": 3
+    },
+    "ensemble_v3_3_100_trajectories": {
+     "microscopy_trend_removed": 0.8657655695257809,
+     "ceiling_trend_removed": 0.9819318583621657,
+     "percent_of_ceiling": 88.169618100573,
+     "microscopy_raw_spearman": 0.9571856974246714,
+     "lin_ccc_nm": 0.7905798438574628,
+     "contact_map_fit": 0.9884355073086452,
+     "splits": 3
+    },
+    "reference_direct_inversion_no_3d": {
+     "microscopy_trend_removed": 0.8233400577607907,
+     "ceiling_trend_removed": 0.9819318583621657,
+     "percent_of_ceiling": 83.84900140974125,
+     "microscopy_raw_spearman": 0.9376794036601598,
+     "lin_ccc_nm": 0.7954065686179271,
+     "contact_map_fit": NaN,
+     "splits": 3
+    }
+   },
+   "HCT116 chr21:34-37 Mb": {
+    "single_structure_v3_2": {
+     "microscopy_trend_removed": 0.5352575004083123,
+     "ceiling_trend_removed": 0.9968080472979318,
+     "percent_of_ceiling": 53.69714880003687,
+     "microscopy_raw_spearman": 0.8568450099760941,
+     "lin_ccc_nm": 0.17454128494691715,
+     "contact_map_fit": 0.8738208424011275,
+     "splits": 3
+    },
+    "ensemble_v3_3": {
+     "microscopy_trend_removed": 0.9511340286125535,
+     "ceiling_trend_removed": 0.9968080472979318,
+     "percent_of_ceiling": 95.41797251645512,
+     "microscopy_raw_spearman": 0.9829734648631224,
+     "lin_ccc_nm": 0.9662952171611293,
+     "contact_map_fit": 0.9911340755835739,
+     "splits": 3
+    },
+    "ensemble_v3_3_100_trajectories": {
+     "microscopy_trend_removed": 0.9498050549694383,
+     "ceiling_trend_removed": 0.9968080472979318,
+     "percent_of_ceiling": 95.2846495916736,
+     "microscopy_raw_spearman": 0.9820276676755079,
+     "lin_ccc_nm": 0.9663707899992261,
+     "contact_map_fit": 0.9911340755835739,
+     "splits": 3
+    },
+    "reference_direct_inversion_no_3d": {
+     "microscopy_trend_removed": 0.9372819928773071,
+     "ceiling_trend_removed": 0.9968080472979318,
+     "percent_of_ceiling": 94.02833328021545,
+     "microscopy_raw_spearman": 0.9764819314769205,
+     "lin_ccc_nm": 0.9480082575635191,
+     "contact_map_fit": NaN,
+     "splits": 3
+    }
+   }
+  },
+  "overall": {
+   "single_structure_v3_2": {
+    "percent_of_ceiling": 48.28136316696439,
+    "definition": "sum over datasets of trend-removed Spearman / sum of ceilings"
+   },
+   "ensemble_v3_3": {
+    "percent_of_ceiling": 91.98943020457547,
+    "definition": "sum over datasets of trend-removed Spearman / sum of ceilings"
+   },
+   "ensemble_v3_3_100_trajectories": {
+    "percent_of_ceiling": 91.85826123686101,
+    "definition": "sum over datasets of trend-removed Spearman / sum of ceilings"
+   },
+   "reference_direct_inversion_no_3d": {
+    "percent_of_ceiling": 87.47550026233758,
+    "definition": "sum over datasets of trend-removed Spearman / sum of ceilings"
+   }
+  }
+ },
+ "runs": [
+  {
+   "cell_line": "K562",
+   "region": "chr21:28-30 Mb",
+   "split": 0,
+   "cells_total": 12119,
+   "segments": 65,
+   "single_structure_v3_2": {
+    "microscopy": {
+     "spearman": 0.8074169219237993,
+     "pearson": 0.7991813246608599,
+     "spearman_distance_corrected": 0.3662673587240479,
+     "lin_ccc_nm": 0.10070879728243155,
+     "median_scale_model_over_real": 0.3082848691564334
+    },
+    "contact_map_fit": 0.836190175147028
+   },
+   "ensemble_v3_3": {
+    "microscopy": {
+     "spearman": 0.980292883100947,
+     "pearson": 0.9846948563762793,
+     "spearman_distance_corrected": 0.9082729870386271,
+     "lin_ccc_nm": 0.9237141687598489,
+     "median_scale_model_over_real": 0.9012285572181248
+    },
+    "contact_map_fit": 0.9910798755945318,
+    "spread_cv_model": 0.4246511459350586,
+    "spread_cv_measured_half_B": 0.5646446455232061,
+    "seconds": 5.374335050582886,
+    "device": "cpu"
+   },
+   "ensemble_v3_3_100_trajectories": {
+    "microscopy": {
+     "spearman": 0.9776008225930851,
+     "pearson": 0.9836193459199527,
+     "spearman_distance_corrected": 0.9088383664779238,
+     "lin_ccc_nm": 0.9314085212635052,
+     "median_scale_model_over_real": 0.9054736144047083
+    },
+    "contact_map_fit": 0.9910798755945318
+   },
+   "reference_direct_inversion_no_3d": {
+    "microscopy": {
+     "spearman": 0.9697011908179968,
+     "pearson": 0.9619434280554751,
+     "spearman_distance_corrected": 0.8680122812702218,
+     "lin_ccc_nm": 0.9146507494775402,
+     "median_scale_model_over_real": 0.9022717351008681
+    }
+   },
+   "baseline_genomic_distance_only": {
+    "spearman": 0.9277881010388392,
+    "pearson": 0.9221066430613314,
+    "spearman_distance_corrected": 0.00803033953673292,
+    "lin_ccc_nm": 0.9157434643358076,
+    "median_scale_model_over_real": 0.9832340240638755
+   },
+   "ceiling_half_A_vs_half_B": {
+    "spearman": 0.9968108444165289,
+    "pearson": 0.9979731478705052,
+    "spearman_distance_corrected": 0.9829680452153987,
+    "lin_ccc_nm": 0.997770227261308,
+    "median_scale_model_over_real": 1.0045588510599768
+   }
+  },
+  {
+   "cell_line": "K562",
+   "region": "chr21:28-30 Mb",
+   "split": 1,
+   "cells_total": 12119,
+   "segments": 65,
+   "single_structure_v3_2": {
+    "microscopy": {
+     "spearman": 0.781674198690355,
+     "pearson": 0.776711176629791,
+     "spearman_distance_corrected": 0.30644106989150305,
+     "lin_ccc_nm": 0.09583694024948483,
+     "median_scale_model_over_real": 0.30992507020504845
+    },
+    "contact_map_fit": 0.8169074530983491
+   },
+   "ensemble_v3_3": {
+    "microscopy": {
+     "spearman": 0.978781561569367,
+     "pearson": 0.9845354887777886,
+     "spearman_distance_corrected": 0.9062489443504844,
+     "lin_ccc_nm": 0.9084219540399155,
+     "median_scale_model_over_real": 0.8932373435613663
+    },
+    "contact_map_fit": 0.9918623396999177,
+    "spread_cv_model": 0.42275482416152954,
+    "spread_cv_measured_half_B": 0.5662953785511233,
+    "seconds": 5.304167032241821,
+    "device": "cpu"
+   },
+   "ensemble_v3_3_100_trajectories": {
+    "microscopy": {
+     "spearman": 0.9778776978942069,
+     "pearson": 0.9832034790303822,
+     "spearman_distance_corrected": 0.899934886255868,
+     "lin_ccc_nm": 0.908131306103145,
+     "median_scale_model_over_real": 0.8940377130679763
+    },
+    "contact_map_fit": 0.9918623396999177
+   },
+   "reference_direct_inversion_no_3d": {
+    "microscopy": {
+     "spearman": 0.9689179195726911,
+     "pearson": 0.9631612672987792,
+     "spearman_distance_corrected": 0.8683923925502368,
+     "lin_ccc_nm": 0.9028169734504857,
+     "median_scale_model_over_real": 0.8949505664991272
+    }
+   },
+   "baseline_genomic_distance_only": {
+    "spearman": 0.932067718463431,
+    "pearson": 0.9258920161272491,
+    "spearman_distance_corrected": 0.0030534715045443016,
+    "lin_ccc_nm": 0.9192879938676949,
+    "median_scale_model_over_real": 0.9795806426742663
+   },
+   "ceiling_half_A_vs_half_B": {
+    "spearman": 0.997308437602004,
+    "pearson": 0.9982859184817372,
+    "spearman_distance_corrected": 0.9854159395304728,
+    "lin_ccc_nm": 0.9982328354801374,
+    "median_scale_model_over_real": 1.0010886972083954
+   }
+  },
+  {
+   "cell_line": "K562",
+   "region": "chr21:28-30 Mb",
+   "split": 2,
+   "cells_total": 12119,
+   "segments": 65,
+   "single_structure_v3_2": {
+    "microscopy": {
+     "spearman": 0.7908830117558101,
+     "pearson": 0.7873662883233857,
+     "spearman_distance_corrected": 0.3816184016496818,
+     "lin_ccc_nm": 0.09538281353787229,
+     "median_scale_model_over_real": 0.3064735512909069
+    },
+    "contact_map_fit": 0.8134838767371934
+   },
+   "ensemble_v3_3": {
+    "microscopy": {
+     "spearman": 0.9825953144620978,
+     "pearson": 0.9862718137239562,
+     "spearman_distance_corrected": 0.9116451535845186,
+     "lin_ccc_nm": 0.9066106005781217,
+     "median_scale_model_over_real": 0.8912163996813377
+    },
+    "contact_map_fit": 0.9907196973030706,
+    "spread_cv_model": 0.4263592064380646,
+    "spread_cv_measured_half_B": 0.5672851776130163,
+    "seconds": 5.562150716781616,
+    "device": "cpu"
+   },
+   "ensemble_v3_3_100_trajectories": {
+    "microscopy": {
+     "spearman": 0.9818499107177242,
+     "pearson": 0.9848349447773233,
+     "spearman_distance_corrected": 0.9054922633243137,
+     "lin_ccc_nm": 0.8727934972962312,
+     "median_scale_model_over_real": 0.878447163966406
+    },
+    "contact_map_fit": 0.9907196973030706
+   },
+   "reference_direct_inversion_no_3d": {
+    "microscopy": {
+     "spearman": 0.972190651010438,
+     "pearson": 0.9656544098809448,
+     "spearman_distance_corrected": 0.8672620690185658,
+     "lin_ccc_nm": 0.902636723862485,
+     "median_scale_model_over_real": 0.8939457639809819
+    }
+   },
+   "baseline_genomic_distance_only": {
+    "spearman": 0.9294490349820117,
+    "pearson": 0.9229677814728111,
+    "spearman_distance_corrected": 0.0008351291501361209,
+    "lin_ccc_nm": 0.9141007860988066,
+    "median_scale_model_over_real": 0.9751241579608906
+   },
+   "ceiling_half_A_vs_half_B": {
+    "spearman": 0.9977427452350706,
+    "pearson": 0.9985086539500594,
+    "spearman_distance_corrected": 0.9853300506572884,
+    "lin_ccc_nm": 0.9983991419403712,
+    "median_scale_model_over_real": 0.9972970837698754
+   }
+  },
+  {
+   "cell_line": "HCT116",
+   "region": "chr21:28-30 Mb",
+   "split": 0,
+   "cells_total": 1979,
+   "segments": 65,
+   "single_structure_v3_2": {
+    "microscopy": {
+     "spearman": 0.8087230620126605,
+     "pearson": 0.8190098816109387,
+     "spearman_distance_corrected": 0.5075661445806203,
+     "lin_ccc_nm": 0.1022847404724766,
+     "median_scale_model_over_real": 0.3241868324064404
+    },
+    "contact_map_fit": 0.8583609509575599
+   },
+   "ensemble_v3_3": {
+    "microscopy": {
+     "spearman": 0.9268380515516419,
+     "pearson": 0.9554061814335144,
+     "spearman_distance_corrected": 0.8414871292015844,
+     "lin_ccc_nm": 0.8818633962063381,
+     "median_scale_model_over_real": 0.8890011169037966
+    },
+    "contact_map_fit": 0.973625829560476,
+    "spread_cv_model": 0.41745346784591675,
+    "spread_cv_measured_half_B": 0.5364271803773617,
+    "seconds": 5.43615984916687,
+    "device": "cpu"
+   },
+   "ensemble_v3_3_100_trajectories": {
+    "microscopy": {
+     "spearman": 0.9248082593427825,
+     "pearson": 0.9533930196524983,
+     "spearman_distance_corrected": 0.8510567442765523,
+     "lin_ccc_nm": 0.8943386394842578,
+     "median_scale_model_over_real": 0.8961302566146874
+    },
+    "contact_map_fit": 0.973625829560476
+   },
+   "reference_direct_inversion_no_3d": {
+    "microscopy": {
+     "spearman": 0.9012670627925823,
+     "pearson": 0.91113992699316,
+     "spearman_distance_corrected": 0.7649821951934225,
+     "lin_ccc_nm": 0.8687313076479508,
+     "median_scale_model_over_real": 0.8962921114509783
+    }
+   },
+   "baseline_genomic_distance_only": {
+    "spearman": 0.8850488626915027,
+    "pearson": 0.9111020324410041,
+    "spearman_distance_corrected": 0.0073607504244664,
+    "lin_ccc_nm": 0.906820491392723,
+    "median_scale_model_over_real": 0.9997367818112902
+   },
+   "ceiling_half_A_vs_half_B": {
+    "spearman": 0.9807050426035419,
+    "pearson": 0.9912176077699336,
+    "spearman_distance_corrected": 0.9295725761402795,
+    "lin_ccc_nm": 0.989408912113373,
+    "median_scale_model_over_real": 0.9905260443279547
+   }
+  },
+  {
+   "cell_line": "HCT116",
+   "region": "chr21:28-30 Mb",
+   "split": 1,
+   "cells_total": 1979,
+   "segments": 65,
+   "single_structure_v3_2": {
+    "microscopy": {
+     "spearman": 0.7952266567764553,
+     "pearson": 0.8030505609767438,
+     "spearman_distance_corrected": 0.4891289241249997,
+     "lin_ccc_nm": 0.09699087917425901,
+     "median_scale_model_over_real": 0.3189766712187243
+    },
+    "contact_map_fit": 0.844457661573319
+   },
+   "ensemble_v3_3": {
+    "microscopy": {
+     "spearman": 0.9227993966418535,
+     "pearson": 0.9504123225976143,
+     "spearman_distance_corrected": 0.856366862773208,
+     "lin_ccc_nm": 0.861632093093714,
+     "median_scale_model_over_real": 0.8809679392818079
+    },
+    "contact_map_fit": 0.97712324116697,
+    "spread_cv_model": 0.42220786213874817,
+    "spread_cv_measured_half_B": 0.533559261640462,
+    "seconds": 5.372712850570679,
+    "device": "cpu"
+   },
+   "ensemble_v3_3_100_trajectories": {
+    "microscopy": {
+     "spearman": 0.9246155979571223,
+     "pearson": 0.9461922680028398,
+     "spearman_distance_corrected": 0.8638054350688973,
+     "lin_ccc_nm": 0.8657115592228407,
+     "median_scale_model_over_real": 0.8795880297930121
+    },
+    "contact_map_fit": 0.97712324116697
+   },
+   "reference_direct_inversion_no_3d": {
+    "microscopy": {
+     "spearman": 0.9017236721124823,
+     "pearson": 0.9110885088919913,
+     "spearman_distance_corrected": 0.7935950291397779,
+     "lin_ccc_nm": 0.8523802297355001,
+     "median_scale_model_over_real": 0.8831812068929235
+    }
+   },
+   "baseline_genomic_distance_only": {
+    "spearman": 0.8932276533165788,
+    "pearson": 0.9164357974719819,
+    "spearman_distance_corrected": -0.001165178960698545,
+    "lin_ccc_nm": 0.9137349582425751,
+    "median_scale_model_over_real": 0.9971345527500453
+   },
+   "ceiling_half_A_vs_half_B": {
+    "spearman": 0.9796094865867709,
+    "pearson": 0.9914877827535054,
+    "spearman_distance_corrected": 0.9350306472236686,
+    "lin_ccc_nm": 0.990749820143869,
+    "median_scale_model_over_real": 0.9907610556333315
+   }
+  },
+  {
+   "cell_line": "HCT116",
+   "region": "chr21:28-30 Mb",
+   "split": 2,
+   "cells_total": 1979,
+   "segments": 65,
+   "single_structure_v3_2": {
+    "microscopy": {
+     "spearman": 0.8235381130931292,
+     "pearson": 0.8280315117821985,
+     "spearman_distance_corrected": 0.5384563260096916,
+     "lin_ccc_nm": 0.10854638515241372,
+     "median_scale_model_over_real": 0.328866721342019
+    },
+    "contact_map_fit": 0.8690163895260385
+   },
+   "ensemble_v3_3": {
+    "microscopy": {
+     "spearman": 0.9319147044409164,
+     "pearson": 0.9584931926481234,
+     "spearman_distance_corrected": 0.8608976295411892,
+     "lin_ccc_nm": 0.9144446155753231,
+     "median_scale_model_over_real": 0.9086932630570456
+    },
+    "contact_map_fit": 0.9736416794802186,
+    "spread_cv_model": 0.42155754566192627,
+    "spread_cv_measured_half_B": 0.5358016365757843,
+    "seconds": 5.301853895187378,
+    "device": "cpu"
+   },
+   "ensemble_v3_3_100_trajectories": {
+    "microscopy": {
+     "spearman": 0.9293076326697765,
+     "pearson": 0.9569639823484205,
+     "spearman_distance_corrected": 0.8595935649257815,
+     "lin_ccc_nm": 0.9008438236419526,
+     "median_scale_model_over_real": 0.9023422214901667
+    },
+    "contact_map_fit": 0.9736416794802186
+   },
+   "reference_direct_inversion_no_3d": {
+    "microscopy": {
+     "spearman": 0.9042729562879678,
+     "pearson": 0.9049466385587563,
+     "spearman_distance_corrected": 0.779111736723036,
+     "lin_ccc_nm": 0.878147402106931,
+     "median_scale_model_over_real": 0.9102063192065653
+    }
+   },
+   "baseline_genomic_distance_only": {
+    "spearman": 0.8818530134106204,
+    "pearson": 0.9108601314979369,
+    "spearman_distance_corrected": -0.0037696461161982786,
+    "lin_ccc_nm": 0.9091381256644775,
+    "median_scale_model_over_real": 1.0017728928263363
+   },
+   "ceiling_half_A_vs_half_B": {
+    "spearman": 0.9835460217388808,
+    "pearson": 0.9923821786418728,
+    "spearman_distance_corrected": 0.9324174573799102,
+    "lin_ccc_nm": 0.9921317178654095,
+    "median_scale_model_over_real": 0.9982876014650832
+   }
+  },
+  {
+   "cell_line": "HCT116 + auxin (cohesin depleted)",
+   "region": "chr21:28-30 Mb",
+   "split": 0,
+   "cells_total": 7380,
+   "segments": 65,
+   "single_structure_v3_2": {
+    "microscopy": {
+     "spearman": 0.8035049725222718,
+     "pearson": 0.7999274034391218,
+     "spearman_distance_corrected": 0.4651338943506171,
+     "lin_ccc_nm": 0.08011981306290557,
+     "median_scale_model_over_real": 0.28192444958375823
+    },
+    "contact_map_fit": 0.8557306601541963
+   },
+   "ensemble_v3_3": {
+    "microscopy": {
+     "spearman": 0.9517500332973662,
+     "pearson": 0.9580278216581614,
+     "spearman_distance_corrected": 0.8529850228793044,
+     "lin_ccc_nm": 0.7923339699697415,
+     "median_scale_model_over_real": 0.847541819555035
+    },
+    "contact_map_fit": 0.9885484223182445,
+    "spread_cv_model": 0.4173806309700012,
+    "spread_cv_measured_half_B": 0.5165746553570655,
+    "seconds": 5.465238332748413,
+    "device": "cpu"
+   },
+   "ensemble_v3_3_100_trajectories": {
+    "microscopy": {
+     "spearman": 0.9530590238423008,
+     "pearson": 0.9588998482561734,
+     "spearman_distance_corrected": 0.8599766270357333,
+     "lin_ccc_nm": 0.8130905502615025,
+     "median_scale_model_over_real": 0.8534607215910945
+    },
+    "contact_map_fit": 0.9885484223182445
+   },
+   "reference_direct_inversion_no_3d": {
+    "microscopy": {
+     "spearman": 0.928375245518661,
+     "pearson": 0.9372911324394513,
+     "spearman_distance_corrected": 0.8014169065495269,
+     "lin_ccc_nm": 0.7896948509706351,
+     "median_scale_model_over_real": 0.8515084156348727
+    }
+   },
+   "baseline_genomic_distance_only": {
+    "spearman": 0.7729541463573484,
+    "pearson": 0.8113361052285966,
+    "spearman_distance_corrected": 0.005111900909631228,
+    "lin_ccc_nm": 0.806329885205268,
+    "median_scale_model_over_real": 1.0141664700865305
+   },
+   "ceiling_half_A_vs_half_B": {
+    "spearman": 0.9965663611165139,
+    "pearson": 0.9972132065754801,
+    "spearman_distance_corrected": 0.9809481551072132,
+    "lin_ccc_nm": 0.9971381742768338,
+    "median_scale_model_over_real": 1.00348352674592
+   }
+  },
+  {
+   "cell_line": "HCT116 + auxin (cohesin depleted)",
+   "region": "chr21:28-30 Mb",
+   "split": 1,
+   "cells_total": 7380,
+   "segments": 65,
+   "single_structure_v3_2": {
+    "microscopy": {
+     "spearman": 0.8219992150929315,
+     "pearson": 0.8173801582762089,
+     "spearman_distance_corrected": 0.4916616660609933,
+     "lin_ccc_nm": 0.0844358746938321,
+     "median_scale_model_over_real": 0.2868327358841427
+    },
+    "contact_map_fit": 0.8625433149805679
+   },
+   "ensemble_v3_3": {
+    "microscopy": {
+     "spearman": 0.963905608223205,
+     "pearson": 0.9677357640901989,
+     "spearman_distance_corrected": 0.8853981247542035,
+     "lin_ccc_nm": 0.8216164210539458,
+     "median_scale_model_over_real": 0.8514122785082295
+    },
+    "contact_map_fit": 0.9889156934687929,
+    "spread_cv_model": 0.4221157431602478,
+    "spread_cv_measured_half_B": 0.5176807611629533,
+    "seconds": 7.884398698806763,
+    "device": "cpu"
+   },
+   "ensemble_v3_3_100_trajectories": {
+    "microscopy": {
+     "spearman": 0.9662827854818327,
+     "pearson": 0.9691963001890989,
+     "spearman_distance_corrected": 0.8761024415277177,
+     "lin_ccc_nm": 0.8296355238335493,
+     "median_scale_model_over_real": 0.8558010995836804
+    },
+    "contact_map_fit": 0.9889156934687929
+   },
+   "reference_direct_inversion_no_3d": {
+    "microscopy": {
+     "spearman": 0.9478536428860067,
+     "pearson": 0.9515547416438896,
+     "spearman_distance_corrected": 0.8469316849302999,
+     "lin_ccc_nm": 0.8237787652417478,
+     "median_scale_model_over_real": 0.8556976477087441
+    }
+   },
+   "baseline_genomic_distance_only": {
+    "spearman": 0.7702811915613045,
+    "pearson": 0.8096597848821314,
+    "spearman_distance_corrected": 0.0035038429541206875,
+    "lin_ccc_nm": 0.8015434376010174,
+    "median_scale_model_over_real": 1.0144597580515673
+   },
+   "ceiling_half_A_vs_half_B": {
+    "spearman": 0.9972927814314108,
+    "pearson": 0.9976830022430561,
+    "spearman_distance_corrected": 0.9855190740702512,
+    "lin_ccc_nm": 0.9974360097617676,
+    "median_scale_model_over_real": 0.9954243884054518
+   }
+  },
+  {
+   "cell_line": "HCT116 + auxin (cohesin depleted)",
+   "region": "chr21:28-30 Mb",
+   "split": 2,
+   "cells_total": 7380,
+   "segments": 65,
+   "single_structure_v3_2": {
+    "microscopy": {
+     "spearman": 0.8289402588537991,
+     "pearson": 0.8241669459523007,
+     "spearman_distance_corrected": 0.4905746263987493,
+     "lin_ccc_nm": 0.08139829061363865,
+     "median_scale_model_over_real": 0.278286699386057
+    },
+    "contact_map_fit": 0.8668885815289123
+   },
+   "ensemble_v3_3": {
+    "microscopy": {
+     "spearman": 0.9604850436019761,
+     "pearson": 0.963967921340879,
+     "spearman_distance_corrected": 0.8740588513414077,
+     "lin_ccc_nm": 0.7746011376438011,
+     "median_scale_model_over_real": 0.8370033827578994
+    },
+    "contact_map_fit": 0.987842406138898,
+    "spread_cv_model": 0.42173314094543457,
+    "spread_cv_measured_half_B": 0.5169598180117818,
+    "seconds": 4.290497064590454,
+    "device": "cpu"
+   },
+   "ensemble_v3_3_100_trajectories": {
+    "microscopy": {
+     "spearman": 0.952215282949881,
+     "pearson": 0.9571277746005544,
+     "spearman_distance_corrected": 0.8612176400138918,
+     "lin_ccc_nm": 0.729013457477337,
+     "median_scale_model_over_real": 0.8261822689722256
+    },
+    "contact_map_fit": 0.987842406138898
+   },
+   "reference_direct_inversion_no_3d": {
+    "microscopy": {
+     "spearman": 0.9368093225758117,
+     "pearson": 0.9424736241128848,
+     "spearman_distance_corrected": 0.8216715818025451,
+     "lin_ccc_nm": 0.7727460896413987,
+     "median_scale_model_over_real": 0.8412023694401467
+    }
+   },
+   "baseline_genomic_distance_only": {
+    "spearman": 0.7646149682593587,
+    "pearson": 0.8014939764526551,
+    "spearman_distance_corrected": 0.005693667967617226,
+    "lin_ccc_nm": 0.7913302598545877,
+    "median_scale_model_over_real": 1.0033191420704806
+   },
+   "ceiling_half_A_vs_half_B": {
+    "spearman": 0.9962998645037886,
+    "pearson": 0.9964128698098053,
+    "spearman_distance_corrected": 0.9793283459090325,
+    "lin_ccc_nm": 0.9948640119079334,
+    "median_scale_model_over_real": 0.9860490835754292
+   }
+  },
+  {
+   "cell_line": "HCT116",
+   "region": "chr21:34-37 Mb",
+   "split": 0,
+   "cells_total": 11631,
+   "segments": 83,
+   "single_structure_v3_2": {
+    "microscopy": {
+     "spearman": 0.8479109893436367,
+     "pearson": 0.8446079083444051,
+     "spearman_distance_corrected": 0.5172152812917357,
+     "lin_ccc_nm": 0.16999070658417567,
+     "median_scale_model_over_real": 0.37863237064263516
+    },
+    "contact_map_fit": 0.8670486509538935
+   },
+   "ensemble_v3_3": {
+    "microscopy": {
+     "spearman": 0.9818474096379018,
+     "pearson": 0.983925873809858,
+     "spearman_distance_corrected": 0.9501718593973084,
+     "lin_ccc_nm": 0.9709717490642967,
+     "median_scale_model_over_real": 1.0122437384962932
+    },
+    "contact_map_fit": 0.9913924430932016,
+    "spread_cv_model": 0.42656347155570984,
+    "spread_cv_measured_half_B": 0.5040540755912192,
+    "seconds": 8.820627927780151,
+    "device": "cpu"
+   },
+   "ensemble_v3_3_100_trajectories": {
+    "microscopy": {
+     "spearman": 0.9809196315238284,
+     "pearson": 0.9837291651436689,
+     "spearman_distance_corrected": 0.9502217733637582,
+     "lin_ccc_nm": 0.9725655424682653,
+     "median_scale_model_over_real": 1.0135054786232334
+    },
+    "contact_map_fit": 0.9913924430932016
+   },
+   "reference_direct_inversion_no_3d": {
+    "microscopy": {
+     "spearman": 0.9756879365603508,
+     "pearson": 0.9767572736240124,
+     "spearman_distance_corrected": 0.9367964282500071,
+     "lin_ccc_nm": 0.9559213242245501,
+     "median_scale_model_over_real": 1.009877728327788
+    }
+   },
+   "baseline_genomic_distance_only": {
+    "spearman": 0.8546000465488187,
+    "pearson": 0.8573840948961818,
+    "spearman_distance_corrected": 0.0019601046352317533,
+    "lin_ccc_nm": 0.8357820706909368,
+    "median_scale_model_over_real": 0.9666233772113458
+   },
+   "ceiling_half_A_vs_half_B": {
+    "spearman": 0.9989860635193665,
+    "pearson": 0.999397170494037,
+    "spearman_distance_corrected": 0.9970403289962422,
+    "lin_ccc_nm": 0.9992348960091623,
+    "median_scale_model_over_real": 0.9957236097278245
+   }
+  },
+  {
+   "cell_line": "HCT116",
+   "region": "chr21:34-37 Mb",
+   "split": 1,
+   "cells_total": 11631,
+   "segments": 83,
+   "single_structure_v3_2": {
+    "microscopy": {
+     "spearman": 0.8638673846939557,
+     "pearson": 0.8601204095519943,
+     "spearman_distance_corrected": 0.5814715152533021,
+     "lin_ccc_nm": 0.17879249934947514,
+     "median_scale_model_over_real": 0.3839156674298113
+    },
+    "contact_map_fit": 0.8805438060729971
+   },
+   "ensemble_v3_3": {
+    "microscopy": {
+     "spearman": 0.9828987954411126,
+     "pearson": 0.9837340102286941,
+     "spearman_distance_corrected": 0.9493571245371661,
+     "lin_ccc_nm": 0.9638037322277815,
+     "median_scale_model_over_real": 1.0220436082386826
+    },
+    "contact_map_fit": 0.9917352172502149,
+    "spread_cv_model": 0.4254375398159027,
+    "spread_cv_measured_half_B": 0.5067964126633473,
+    "seconds": 7.869682550430298,
+    "device": "cpu"
+   },
+   "ensemble_v3_3_100_trajectories": {
+    "microscopy": {
+     "spearman": 0.9824717729286381,
+     "pearson": 0.9835043535857394,
+     "spearman_distance_corrected": 0.9497771505739753,
+     "lin_ccc_nm": 0.9636549891581772,
+     "median_scale_model_over_real": 1.0161501056084505
+    },
+    "contact_map_fit": 0.9917352172502149
+   },
+   "reference_direct_inversion_no_3d": {
+    "microscopy": {
+     "spearman": 0.9772825190845623,
+     "pearson": 0.975296175971038,
+     "spearman_distance_corrected": 0.9370783886684181,
+     "lin_ccc_nm": 0.9447770785657578,
+     "median_scale_model_over_real": 1.0186599489995039
+    }
+   },
+   "baseline_genomic_distance_only": {
+    "spearman": 0.8542949643799693,
+    "pearson": 0.856772006813856,
+    "spearman_distance_corrected": -0.00505791348514523,
+    "lin_ccc_nm": 0.8370741798803045,
+    "median_scale_model_over_real": 0.9693072741610587
+   },
+   "ceiling_half_A_vs_half_B": {
+    "spearman": 0.9988926516737787,
+    "pearson": 0.99929303531272,
+    "spearman_distance_corrected": 0.9968643174659181,
+    "lin_ccc_nm": 0.9992774133736517,
+    "median_scale_model_over_real": 1.0006284201112308
+   }
+  },
+  {
+   "cell_line": "HCT116",
+   "region": "chr21:34-37 Mb",
+   "split": 2,
+   "cells_total": 11631,
+   "segments": 83,
+   "single_structure_v3_2": {
+    "microscopy": {
+     "spearman": 0.8587566558906898,
+     "pearson": 0.8541661031111376,
+     "spearman_distance_corrected": 0.5070857046798991,
+     "lin_ccc_nm": 0.1748406489071006,
+     "median_scale_model_over_real": 0.3823225380833719
+    },
+    "contact_map_fit": 0.873870070176492
+   },
+   "ensemble_v3_3": {
+    "microscopy": {
+     "spearman": 0.9841741895103526,
+     "pearson": 0.9850523408647511,
+     "spearman_distance_corrected": 0.9538731019031863,
+     "lin_ccc_nm": 0.96411017019131,
+     "median_scale_model_over_real": 1.0180468352687941
+    },
+    "contact_map_fit": 0.9902745664073054,
+    "spread_cv_model": 0.4212602972984314,
+    "spread_cv_measured_half_B": 0.5071438608967193,
+    "seconds": 8.120825290679932,
+    "device": "cpu"
+   },
+   "ensemble_v3_3_100_trajectories": {
+    "microscopy": {
+     "spearman": 0.9826915985740572,
+     "pearson": 0.9836917978227551,
+     "spearman_distance_corrected": 0.9494162409705815,
+     "lin_ccc_nm": 0.9628918383712358,
+     "median_scale_model_over_real": 1.0199255368044067
+    },
+    "contact_map_fit": 0.9902745664073054
+   },
+   "reference_direct_inversion_no_3d": {
+    "microscopy": {
+     "spearman": 0.9764753387858487,
+     "pearson": 0.9756277358320711,
+     "spearman_distance_corrected": 0.9379711617134959,
+     "lin_ccc_nm": 0.9433263699002493,
+     "median_scale_model_over_real": 1.0145064679573819
+    }
+   },
+   "baseline_genomic_distance_only": {
+    "spearman": 0.8572454215028317,
+    "pearson": 0.8598971443883482,
+    "spearman_distance_corrected": 0.006747217062065342,
+    "lin_ccc_nm": 0.8426614750969362,
+    "median_scale_model_over_real": 0.9707434650867786
+   },
+   "ceiling_half_A_vs_half_B": {
+    "spearman": 0.998976211085193,
+    "pearson": 0.9992653129389305,
+    "spearman_distance_corrected": 0.9965194954316352,
+    "lin_ccc_nm": 0.9991475152201026,
+    "median_scale_model_over_real": 1.001976973034678
+   }
+  }
+ ]
+}

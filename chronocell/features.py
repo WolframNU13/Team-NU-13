@@ -1,5 +1,5 @@
 """
-Per-bin node features and contact extraction (replaces the Teammate 1 loop).
+Per-bin node features and contact extraction (replaces the original per-bin loop).
 
 Corrections relative to the original pipeline
 * f_GC divides by the number of *called* bases (A/C/G/T), not by B. Dividing by B made the

@@ -108,7 +108,7 @@ The interactive **Streamlit web app** provides a polymer-physics inspector, 3D v
 ## 3. Directory Structure
 
 ```
-Hack-a-thon/
+ChronoCell-5D/
 ├── app.py                          # Streamlit web application (entry point)
 ├── requirements.txt                # Python dependencies
 ├── pytest.ini                      # Pytest configuration
@@ -133,8 +133,6 @@ Hack-a-thon/
 │   ├── test_core.py                # Physics, genome, formats, features verification
 │   └── test_egnn.py                # EGNN equivariance, gradients, reconstruction quality
 │
-├── legacy/                         # Pre-audit code (reference only)
-│   └── app_v1.py                   # Original v1 Streamlit app
 │
 ├── .streamlit/                     # Streamlit configuration
 │   └── config.toml                 # Theme tokens, upload limits, server settings
@@ -564,9 +562,7 @@ python -m chronocell.train --graph graph_chr22.npz --out predicted_coords.npz \
 
 ## 8. Legacy Code
 
-### `legacy/app_v1.py` (90,769 bytes)
-
-The original v1 Streamlit application, kept as a reference for the audit documented in [AUDIT.md](AUDIT.md). This file is **not imported** by any current code. The audit identified 29+ flaws including incorrect loss functions, wrong coordinate units (Å instead of nm), hg19 centromere coordinates, biased steric sampling, and missing rest-length in the backbone loss.
+The original v1 Streamlit application (`legacy/app_v1.py`), the subject of the audit in [AUDIT.md](AUDIT.md), has been removed from the working tree. It remains in git history: it was last present in commit `52c9174`, so `git show 52c9174:legacy/app_v1.py` retrieves it. The audit identified 29+ flaws including incorrect loss functions, wrong coordinate units (Å instead of nm), hg19 centromere coordinates, biased steric sampling, and missing rest-length in the backbone loss.
 
 ---
 

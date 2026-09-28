@@ -7,3 +7,5 @@ __pycache__/
 *.pyc
 demo_states/
 colab/chronocell_code.zip
+# third-party validation data (downloaded on demand by validation/validate_tracing.py)
+validation/data/

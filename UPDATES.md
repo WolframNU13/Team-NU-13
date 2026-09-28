@@ -234,3 +234,88 @@ worldwide publication date for everything in commit `af4d159`.
 From here on, write entries **as work happens**, dated, with the contributor named. A
 contemporaneous log is worth far more than a reconstructed one. Append to the bottom, never rewrite
 history above, and commit each entry so its date is independently witnessed by git.
+
+---
+
+## 28 September 2026 — post-event cleanup (live log)
+
+**Entries from here on are written as the work happens**, unlike the reconstructed sections above.
+Times are the machine clock (IST, UTC+05:30); git commit times witness them independently.
+
+Made by, for every entry in this section unless stated otherwise: **Claude (AI coding assistant,
+Claude Code, model Claude Opus 5.5)**. Requested and approved by: **Shivoham Pandey**.
+
+**15:02:34 · Commit `52c9174` on `main`: this log added to git.** It had existed only as an untracked
+file. Committed at the requester's instruction before any cleanup began. Not pushed.
+
+**15:02:35 · Branch `chore/hackathon-cleanup` created from `52c9174`.** All cleanup below happens on
+this branch; `main` is untouched.
+
+**15:05 · Repository location recorded.** The requester reports that the GitHub repository was
+transferred and renamed from `github.com/WolframNU13/Team-NU-13` to
+`github.com/Sh1voham/ChronoCell-5D`. It could not be independently verified from this machine: the
+GitHub login here (WolframNU13) no longer has access, and the new repository is not public. The local
+`origin` remote still points at the old name and was not changed.
+
+**15:07 · Baseline before any change: 101 tests passed.**
+
+**15:38:04 · Removed `legacy/app_v1.py`.** The original prototype app, imported by nothing. It
+remains in git history: `git show 52c9174:legacy/app_v1.py`.
+
+**15:38:04 · Stopped tracking `colab/chronocell_code.zip`.** A generated file (made by
+`python colab/pack_code.py`) that `.gitignore` already listed. The local copy is kept.
+
+**15:38:04 · `JUDGES_GUIDE.md` moved to `docs/OVERVIEW.md`,** then edited at **15:38:49**:
+- the judge-specific wording and the 3-minute demo script were removed;
+- "pitch" and "questions judges ask" were retitled "In 30 seconds" and "Frequently asked questions";
+- the outdated accuracy paragraph ("imaging data weren't available") was replaced with the real
+  microscopy validation results, including the unfavourable ones.
+
+**15:38:05 — 15:38:17 · Stopped tracking `validation/data/*.csv` (16 MB) and added `validation/data/`
+to `.gitignore`.** This is third-party data (Bintu et al., *Science* 2018) whose licence is
+unconfirmed. `validation/validate_tracing.py` downloads it on first run. The local copies are kept.
+
+**15:39:31 · Documentation and code references updated:**
+- `APP_GUIDE.md` and `AUDIT.md`: references to `JUDGES_GUIDE.md` now point to `docs/OVERVIEW.md`,
+  and the `legacy/app_v1.py` row is removed.
+- `ARCHITECTURE.md`: folder name `Hack-a-thon/` changed to `ChronoCell-5D/`, and the legacy entries
+  now point to git history.
+- `chronocell/features.py` docstring: "Teammate 1 loop" changed to "original per-bin loop".
+- `validation/validate_tracing.py` docstring corrected: it writes `results.json` only.
+- `validation/RESULTS.md`: now notes the on-demand data download.
+- `colab/ChronoCell5D_Colab.ipynb`: example Google Drive path changed to `MyDrive/ChronoCell-5D`.
+
+**15:40 — 15:41 · Added `docs/images/fold.png` and `docs/images/compare.png`.** Rendered with
+`chronocell.snapshot` from the synthetic reference model and the synthetic demo patients, and
+captioned as synthetic in the README.
+
+**15:42:20 · `README.md` rewritten.** The old file was wrapped in `<![CDATA[ ... ]]>`, which made
+GitHub show it as one unformatted paragraph. Changes:
+- new structure, with the two images and a pipeline diagram;
+- a validation summary with its limits;
+- test count corrected from 83 to 101;
+- two claims the app does not support were removed: an "immunoglobulin cluster" preset and
+  "persistence length";
+- clone URL changed to `Sh1voham/ChronoCell-5D`;
+- the "Team NU-13" section was removed at the requester's instruction.
+
+**Licence: deliberately not added.** The old README claimed "MIT", but no `LICENSE` file exists, and
+the open items above say to check the HackBlitz registration terms for an IP-assignment or licence
+clause first. The claim was replaced with "no licence has been chosen yet". Choosing one remains an
+open decision for the authors.
+
+**Kept, by decision:**
+- the two reference PDFs (at the requester's instruction);
+- `UPDATES.md`;
+- `.claude/launch.json` (local app-preview settings used by the assistant);
+- the historical "Teammate" references in `AUDIT.md`, which describe the original specification.
+
+**15:43 — 15:47 · Verification after the changes.** Every Python file compiles; the Colab notebook
+and `validation/results.json` parse; **101 tests passed**, the same as the baseline. This includes
+end-to-end runs through all six app pages.
+
+**15:48 · Committed on `chore/hackathon-cleanup`** (the commit that adds this entry). Not pushed:
+this machine's GitHub login has no access to the renamed repository.
+
+Contributors to the ideas behind these changes: _______________ (the requester directed the cleanup;
+fill in if others were involved).

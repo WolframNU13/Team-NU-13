@@ -1,325 +1,210 @@
-<![CDATA[# 🧬 ChronoCell-5D
+# ChronoCell-5D
 
-> **AI-powered 3D / 4D chromatin structure workstation for human chromosomes**
+**A 3D / 4D workstation for the folding of human chromosomes.** It rebuilds how a chromosome is folded inside the nucleus from contact data, follows the fold through time and disease, places every gene on it, simulates epigenetic drug mechanisms, and explains the results in plain language.
 
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://python.org)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.50%2B-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.2%2B-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org)
-[![Tests](https://img.shields.io/badge/Tests-83%20passing-brightgreen)]()
-[![License](https://img.shields.io/badge/License-MIT-blue)]()
+![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)
+![Streamlit](https://img.shields.io/badge/streamlit-1.50%2B-FF4B4B?logo=streamlit&logoColor=white)
+![PyTorch](https://img.shields.io/badge/pytorch-2.2%2B-EE4C2C?logo=pytorch&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-101%20passing-2ea44f)
 
----
-
-## 📖 Overview
-
-**ChronoCell-5D** reconstructs and visualises the three-dimensional spatial fold of human chromosomes from experimental genomics data. It combines **contact-frequency embedding** with an **E(3)-equivariant graph neural network (EGNN)** to produce physically realistic 3D structures, then layers polymer-physics analytics, biological-state comparison, and an AI-powered interpreter on top.
-
-### The "5D"
-
-| Dimension | What it captures |
-|-----------|-----------------|
-| **X, Y, Z** | Spatial 3D coordinates of each genomic locus |
-| **4th D** | Time-course playback & condition transitions |
-| **5th D** | Biological state (Healthy → Disease/Cancer → Senescent) |
+<p align="center">
+  <img src="docs/images/fold.png" alt="3D fold of the long arm of human chromosome 22, coloured from one end to the other" width="760">
+  <br>
+  <sub>The long arm of chromosome 22 (18–51 Mb) as a 3D fold, coloured from one end of the DNA to the other. Rendered from the app's built-in synthetic reference model.</sub>
+</p>
 
 ---
 
-## ✨ Key Features
+## Contents
 
-### 🔬 Two-Stage AI Reconstruction Pipeline
-- **Contact embedding** — converts Micro-C pairwise contact frequencies into target 3D distances via the power-law relationship *M ∝ d⁻ᵅ*, then optimises free coordinates with a multi-term loss (distance, smoothness, clash, steric)
-- **E(3)-Equivariant GNN** — refines coordinates conditioned on genomic features (GC content, H3K27ac signal), producing structures invariant to rotation, reflection, and translation
-
-### 🧪 Polymer-Physics Analytics
-- Radius of gyration (R_g), contact probability scaling P(s), Flory exponent (ν)
-- Neighbour search, Kabsch RMSD alignment, persistence length
-- Metric dashboard with live deltas across biological states
-
-### 🧬 Biological State Comparison
-- Compare **Healthy Control** vs **Disease State / Cancer** vs **Senescent State**
-- Format-based data engine — files are recognised by content, not names
-- Simulated disease rearrangements (deletions, inversions, translocations)
-
-### 🤖 ChronoAgent — Structural Genomics Interpreter
-- Natural-language queries about chromatin structure ("Which TADs contain the most active enhancers?")
-- Online mode with **Gemini** or **OpenRouter** LLM (free API key)
-- Offline heuristic engine for instant answers without a key
-- Exports analysis reports (Markdown + PDB)
-
-### 📊 Interactive 3D Viewport
-- Lit triangle-mesh tube rendering with multiple colour modes
-- Contact maps, distance matrices, and genomic-feature tracks
-- Residue Index Spectrum and Epigenomic Signal Heatmap colouring
-- Region presets (full chromosome, centromere, telomeres, immunoglobulin cluster)
-
-### 📤 Standards-Compliant Export
-- **wwPDB-conformant PDB** files (loadable in PyMOL, Chimera, VMD)
-- XYZ, CSV, NPZ coordinate formats
-- PDF research dossiers and Markdown analysis reports
+- [Why it matters](#why-it-matters)
+- [What you can do](#what-you-can-do)
+- [Quick start](#quick-start)
+- [How it works](#how-it-works)
+- [Accuracy](#accuracy)
+- [Bring your own data](#bring-your-own-data)
+- [ChronoAgent: optional AI key](#chronoagent-optional-ai-key)
+- [Command line](#command-line)
+- [Project layout](#project-layout)
+- [Documentation](#documentation)
+- [Limitations](#limitations)
+- [Licence](#licence)
 
 ---
 
-## 🏗️ Architecture
+## Why it matters
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                       USER INTERFACE (app.py)                         │
-│   Data I/O  ·  3D Viewport (Plotly)  ·  Inspector Panels  ·  Export  │
-│   States Panel  ·  ChronoAgent  ·  4D Workspace  ·  Drug Lab        │
-├────────────────────────────────────────────────────────────────────────┤
-│                     UI COMPONENTS (ui/)                               │
-│   common · four_d · states_panel · agent_panel · compare             │
-│   drug_lab · genes_view · guide · sync_view                          │
-├────────────────────────────────────────────────────────────────────────┤
-│                    CORE LIBRARY (chronocell/)                         │
-│                                                                       │
-│   genome.py      GRCh38 constants, cytobands, centromere, gaps       │
-│   features.py    Per-bin GC fraction, H3K27ac binning, enhancer hubs │
-│   physics.py     Polymer physics engine (losses, R(s), Rg, RMSD)    │
-│   egnn.py        E(3)-equivariant GNN model + two-stage training     │
-│   synthetic.py   Hilbert-curve fractal globule + planted contacts    │
-│   formats.py     PDB/XYZ/NPZ/PT/CSV I/O, graph loaders             │
-│   viz.py         Plotly 3D viewport, 2D analytics charts             │
-│   theme.py       CSS design tokens, colour scales                    │
-│   states.py      Biological state data engine                        │
-│   agent.py       ChronoAgent LLM + heuristic interpreter            │
-│   scenarios.py   Disease rearrangement simulations                   │
-│   domains.py     TAD / compartment domain detection                  │
-│   genes.py       Gene annotation and overlay                         │
-│   ingest.py      Multi-format file ingestion                         │
-│   therapy.py     Therapeutic target analysis                         │
-│   pdf_report.py  PDF research dossier generation                     │
-│   colab.py       Colab notebook builder utilities                    │
-│                                                                       │
-│   CLI tools:                                                          │
-│   build_graph.py   FASTA + bigWig + mcool → graph .npz              │
-│   train.py         graph → reconstructed 3D coordinates              │
-│   benchmark.py     Accuracy evaluation on planted structures         │
-├────────────────────────────────────────────────────────────────────────┤
-│                       TEST SUITE (tests/)                             │
-│   test_core · test_egnn · test_v3 · test_v31 · test_v32  (83 tests) │
-└────────────────────────────────────────────────────────────────────────┘
-```
+Every human cell packs about two metres of DNA into a nucleus a few micrometres across. **How that DNA is folded decides which genes can be read.** Misfolding and rearrangements are involved in cancer, cellular ageing and some neurodegenerative diseases.
 
----
+The fold can't be photographed directly across a whole chromosome. Experiments such as Hi-C and Micro-C instead measure which pieces of DNA touch. ChronoCell-5D turns those measurements into a 3D structure and puts the tools to study it in one place.
 
-## 🚀 Getting Started
+## What you can do
 
-### Prerequisites
+| Page | What it does |
+|---|---|
+| **01 · 3D structure** | Rotate the fold, and read its size, span and activity signal. Colour it by position, activity mark, A/B compartment or TAD neighbourhood. Measure it with polymer physics, rebuild it from contacts, and export it. |
+| **02 · 4D dynamics** | Play time courses, or morph Healthy → Disease → Senescent. Simulate rearrangements (22q11.2 deletion, the Philadelphia chromosome, the Ewing sarcoma fusion, SNCA triplication), and export movies and GIFs. |
+| **03 · Compare** | Two states side by side, with linked cameras. Every piece of DNA is coloured by how far it moved, alongside the genes in the most-changed regions. |
+| **04 · Drug lab** | Apply an epigenetic drug mechanism (EZH2/EED, HDAC or BET inhibitor, or a loop stabiliser), drag the dose slider, and measure how far the fold moves back toward healthy. |
+| **05 · Genes** | All 19,386 human genes placed on the fold, labelled predicted active or silenced from 3D accessibility. Shows which genes touch in 3D, and checks predictions against RNA-seq. |
+| **06 · Guide** | A plain-language guide to every page and number. |
+| **🤖 ChronoAgent** | Reads the measurements on screen and writes an interpretation. Exports a Markdown report, a PDB structure and a PDF dossier. |
 
-- **Python 3.10+**
-- **pip** (or conda)
-- **PyTorch 2.2+** (for reconstruction; the viewer runs without it)
+<p align="center">
+  <img src="docs/images/compare.png" alt="Healthy and tumour folds of the same region side by side, coloured by activity signal" width="820">
+  <br>
+  <sub>The Compare page idea: the same 8 Mb region in a healthy and a tumour fold, coloured by activity signal (blue low, magenta high). These are the app's synthetic demo patients.</sub>
+</p>
 
-### Installation
+## Quick start
 
 ```bash
-# Clone the repository
-git clone https://github.com/WolframNU13/Team-NU-13.git
-cd Team-NU-13
-
-# Install dependencies
+git clone https://github.com/Sh1voham/ChronoCell-5D.git
+cd ChronoCell-5D
 pip install -r requirements.txt
-```
-
-### Run the App
-
-```bash
 streamlit run app.py
-# Opens at http://localhost:8501
 ```
 
-### Run Tests
+The app opens at <http://localhost:8501> with a clearly labelled synthetic reference chromosome.
 
-```bash
-python -m pytest          # 83 tests
+To explore every page without data, open the sidebar and switch on **Load demo patients (synthetic)**. This adds a healthy, a tumour and a senescent chr22. They are generated locally and labelled as demo data everywhere.
+
+PyTorch is only needed to reconstruct structures; the viewer, analytics and exports run without it.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A["Contact data<br/>Hi-C / Micro-C"] --> B["Contacts → target distances<br/>(M ∝ d⁻ᵅ)"]
+    B --> C["Initial layout<br/>(shortest-path MDS)"]
+    C --> D["Refinement<br/>gradient + E(3)-equivariant GNN"]
+    D --> E["3D fold"]
+    F["Signal tracks<br/>GC · H3K27ac · your own"] --> D
+    E --> G["Polymer physics<br/>TADs · compartments"]
+    E --> H["Compare · 4D · Drug lab · Genes"]
+    G --> I["ChronoAgent<br/>report · PDF"]
+    H --> I
 ```
 
----
+1. **Contacts become distances.** DNA pieces that touch often must be close in space.
+2. **A first 3D layout** satisfies those distances as well as possible.
+3. **Refinement** pulls the layout into a physically valid chain: fixed spacing along the DNA, no two pieces overlapping. An E(3)-equivariant graph neural network gives the same answer however the structure is rotated or mirrored.
+4. **Analysis** measures the fold: size, compaction, crowding, contact decay, TAD boundaries and A/B compartments. The other pages and ChronoAgent build on these measurements.
 
-## 💻 Usage
+Heavy reconstructions can run on a free Google Colab GPU with [`colab/ChronoCell5D_Colab.ipynb`](colab/ChronoCell5D_Colab.ipynb). Its output unzips straight into `coordinates/`.
 
-### Web App (Streamlit)
+## Accuracy
 
-1. Launch with `streamlit run app.py`
-2. The app starts with a reference model of human chromosome 22 (GRCh38, 10 kb resolution)
-3. Upload your own coordinates, or run a GPU reconstruction via Colab
+The reconstruction was tested against **real microscopy**: chromatin tracing from Bintu et al., *Science* 2018. That data gives the measured 3D position of every 30 kb piece of DNA in thousands of human cells.
 
-**Coordinates:** Drop files into `coordinates/<chrom>/` or upload via the *Data* panel. Until then, a clearly labelled reference model is shown.
+**How it was tested:**
+1. The cells were split into two halves.
+2. The model saw only contact frequencies from the first half.
+3. It was scored against distances measured in the second half, which it never saw.
 
-**Biological States:** In the sidebar, pick *Healthy Control*, *Disease State / Cancer*, or *Senescent State*. Files are recognised by content (`.npy` coordinates, `.npy` signal tracks, `.pdb` structures).
+| Dataset | Folding pattern recovered, trend removed (model / experiment's own ceiling) | Distance-only baseline, trend removed |
+|---|---|---|
+| IMR90, chr21:28–30 Mb | 0.38 / 0.98 (**39 %**) | 0.01 |
+| A549, chr21:28–30 Mb | 0.51 / 0.95 (**54 %**) | 0.00 |
+| IMR90, chr21:18–20 Mb | 0.09 / 0.25 (36 %) | 0.00 |
 
-**ChronoAgent 🤖:** A structural-genomics interpreter below the viewport.
-- Paste a free Google AI Studio (Gemini) or OpenRouter key for LLM answers
-- Without a key, an offline heuristic engine answers instantly
+**What the numbers mean:**
+- **Real structure.** Beyond the obvious "further along the DNA = further apart" trend, the model recovers a real share of the folding pattern that a distance-only guess misses entirely.
+- **Raw ranking.** On raw rank agreement, that simple distance rule still scores higher than the model.
+- **Absolute size.** Distances are about 3× too small until the length scale is calibrated.
 
-### Command-Line Pipeline
+Method, full numbers and limitations: [`validation/RESULTS.md`](validation/RESULTS.md). Rerun with `python validation/validate_tracing.py`.
+
+## Bring your own data
+
+Files are recognised **by their content**, not their name, and assigned to *Healthy*, *Disease / Cancer* or *Senescent* by words in the file or folder name. You can also upload files straight into a state from the sidebar.
+
+| You have | Formats |
+|---|---|
+| 3D coordinates | `.npy` (N×3 or T×N×3), `.pdb`, `.npz`, `.xyz`, `.csv` |
+| Activity / ChIP / ATAC signal | `.npy` (one value per bead), `.bedGraph`, `.bed`, `.bigWig`¹ |
+| Hi-C / Micro-C contacts | `.cool`, `.mcool`, `.hic`², text tables (`bin bin count`, positions, BEDPE) |
+| RNA-seq expression | `.csv` / `.tsv` (gene, value) |
+
+¹ needs `pyBigWig` · ² needs `hic-straw`, or convert with `hic2cool`
+
+Put files in `coordinates/<chromosome>/` (see [`coordinates/README.md`](coordinates/README.md)) or use the sidebar and the *Data* menu.
+
+## ChronoAgent: optional AI key
+
+ChronoAgent works **offline by default**: a rule-based engine answers instantly from the measurements. For free-form answers, add a free **Google AI Studio (Gemini)** or **OpenRouter** key, in either of two ways:
+
+- **Per session:** paste it into the sidebar field **AI API Key**.
+- **Permanently:** copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and set `GEMINI_API_KEY` or `OPENROUTER_API_KEY`. That file is git-ignored.
+
+The key is sent only to the provider you choose, in a request header, and is never shown on screen or written into reports.
+
+## Command line
 
 ```bash
-# Stage 1: Build the graph from raw genomics data
-python -m chronocell.build_graph \
-  --fasta chr22.fa \
-  --bigwig H3K27ac.bigWig \
-  --mcool sample.mcool \
-  --out graph.npz
-
-# Or use synthetic data for testing
-python -m chronocell.build_graph --synthetic --out graph.npz
-
-# Stage 2: Reconstruct 3D structure
+python -m chronocell.build_graph --fasta chr22.fa --bigwig H3K27ac.bigWig --mcool sample.mcool --out graph.npz
+python -m chronocell.build_graph --synthetic --out graph.npz     # no downloads needed
 python -m chronocell.train --graph graph.npz --out predicted_coords.npz
-
-# Stage 3: Benchmark accuracy
-python -m chronocell.benchmark
-
-# Generate synthetic biological state files (optional)
-python -m chronocell.demo_states demo_states
+python -m chronocell.benchmark                                   # accuracy on synthetic structures
+python -m chronocell.demo_states demo_states                     # write the demo patients as files
+python validation/validate_tracing.py                            # accuracy against real microscopy
+python -m pytest                                                 # 101 tests
 ```
 
-### GPU Reconstruction (Google Colab)
+## Project layout
 
-For heavy reconstruction jobs, use the provided Colab notebook:
-
-1. Open `colab/ChronoCell5D_Colab.ipynb` on a Colab T4 runtime
-2. Run all cells — outputs unzip straight into `coordinates/`
-3. Restart the Streamlit app to pick up the new structures
-
----
-
-## 📁 Project Structure
-
-```
-Team-NU-13/
-├── app.py                    # Streamlit entry point
-├── requirements.txt          # Python dependencies
-├── pytest.ini                # Test configuration
-├── README.md                 # This file
-├── ARCHITECTURE.md           # Detailed architecture documentation
-├── APP_GUIDE.md              # Complete application guide (every screen & function)
-├── AUDIT.md                  # Audit of v1 → v3.2 with corrected equations
-│
-├── chronocell/               # Core Python package (23 modules)
-│   ├── genome.py             # GRCh38 chromosome constants
-│   ├── features.py           # Genomic feature extraction
-│   ├── physics.py            # Polymer physics engine
-│   ├── egnn.py               # E(3)-equivariant GNN
-│   ├── synthetic.py          # Synthetic ground truth generator
-│   ├── formats.py            # File I/O and PDB export
-│   ├── viz.py                # Plotly visualisation builders
-│   ├── theme.py              # Design tokens and CSS
-│   ├── states.py             # Biological state engine
-│   ├── agent.py              # ChronoAgent interpreter
-│   ├── scenarios.py          # Disease rearrangements
-│   ├── domains.py            # TAD / compartment detection
-│   ├── genes.py              # Gene annotation
-│   ├── ingest.py             # Multi-format ingestion
-│   ├── therapy.py            # Therapeutic analysis
-│   ├── pdf_report.py         # PDF report generation
-│   ├── colab.py              # Colab utilities
-│   ├── snapshot.py           # State snapshot management
-│   ├── demo_states.py        # Synthetic state file generator
-│   ├── build_graph.py        # CLI: raw files → graph
-│   ├── train.py              # CLI: graph → 3D coordinates
-│   ├── benchmark.py          # CLI: accuracy benchmark
-│   └── data/                 # Reference data (hg38.json)
-│
-├── ui/                       # Streamlit UI components (10 modules)
-│   ├── common.py             # Dataset assembly, coordinate slot, helpers
-│   ├── four_d.py             # 4D workspace (time-course playback)
-│   ├── states_panel.py       # Biological state selector
-│   ├── agent_panel.py        # ChronoAgent chat interface
-│   ├── compare.py            # State comparison views
-│   ├── drug_lab.py           # Therapeutic target explorer
-│   ├── genes_view.py         # Gene annotation overlay
-│   ├── guide.py              # In-app usage guide
-│   └── sync_view.py          # Synchronised multi-view
-│
-├── tests/                    # Test suite (83 tests)
-│   ├── test_core.py          # Physics, genome, formats, features
-│   ├── test_egnn.py          # EGNN equivariance & gradients
-│   ├── test_v3.py            # v3 regression tests
-│   ├── test_v31.py           # v3.1 feature tests
-│   └── test_v32.py           # v3.2 feature tests
-│
-├── colab/                    # Google Colab notebook + utilities
-│   ├── ChronoCell5D_Colab.ipynb
-│   ├── chronocell_code.zip
-│   └── pack_code.py
-│
-├── coordinates/              # Reconstructed coordinate files
-├── legacy/                   # Pre-audit reference code (v1)
-└── .streamlit/               # Streamlit configuration
+```text
+ChronoCell-5D/
+├── app.py                  Streamlit application (entry point)
+├── chronocell/             core library, no Streamlit imports
+│   ├── genome.py           GRCh38 chromosomes, bands, gaps, bins
+│   ├── physics.py          polymer physics: R_g, scaling, crowding, losses
+│   ├── egnn.py             E(3)-equivariant GNN and structure fitting
+│   ├── synthetic.py        synthetic reference model
+│   ├── features.py         GC / signal binning, contact extraction
+│   ├── formats.py          PDB, XYZ, bundles, graph readers
+│   ├── ingest.py           BED / bedGraph / bigWig tracks, cool / mcool / hic contacts
+│   ├── states.py           biological-state engine (files recognised by content)
+│   ├── domains.py          TADs, A/B compartments, loops, contact decay
+│   ├── genes.py            gene annotation, 3D accessibility, RNA-seq agreement
+│   ├── scenarios.py        4D structural-variant simulations
+│   ├── therapy.py          drug-lab mechanism model
+│   ├── agent.py            ChronoAgent (offline rules + Gemini / OpenRouter)
+│   ├── pdf_report.py       PDF dossier
+│   ├── snapshot.py         static PNG / GIF rendering
+│   ├── viz.py, theme.py    figures and design tokens
+│   ├── build_graph.py, train.py, benchmark.py, colab.py, demo_states.py
+│   └── data/               hg38 annotation, 19,386 genes (UCSC RefSeq Select)
+├── ui/                     the six pages, sidebar and shared helpers
+├── tests/                  101 tests, including end-to-end runs of every page
+├── validation/             accuracy against real microscopy
+├── colab/                  GPU reconstruction notebook
+├── coordinates/            drop-in folder for your structures
+└── docs/                   plain-language overview and images
 ```
 
----
+## Documentation
 
-## 🧮 How It Works
+| Document | What's in it |
+|---|---|
+| [`docs/OVERVIEW.md`](docs/OVERVIEW.md) | The whole project in plain language, with everyday analogies |
+| [`APP_GUIDE.md`](APP_GUIDE.md) | Every screen, graph, option, file and function |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Architecture, module reference and equations (written for the v2 design; `APP_GUIDE.md` covers the current modules) |
+| [`AUDIT.md`](AUDIT.md) | Audit of the first version and the corrections made |
+| [`validation/RESULTS.md`](validation/RESULTS.md) | Accuracy against real microscopy |
+| [`coordinates/README.md`](coordinates/README.md) | Coordinate folder and file formats |
+| [`UPDATES.md`](UPDATES.md) | Development log |
 
-### 1. Graph Assembly
-Raw genomics data (FASTA sequence, H3K27ac ChIP-seq, Micro-C contacts) is binned at 10 kb resolution into a graph where nodes carry genomic features and edges carry contact frequencies.
+## Limitations
 
-### 2. Contact Embedding
-Pairwise contact counts are converted to target 3D distances via the power-law *M ∝ d⁻ᵅ*. Free 3D coordinates are optimised with a composite loss:
-- **Distance loss** — fit the target distances
-- **Smoothness** — penalise sharp bends in the polymer backbone
-- **Clash penalty** — prevent steric overlaps
-- **Polymer prior** — fill gaps where contacts are missing
+- **Research and education only.** This is not a diagnostic tool and not medical advice.
+- **The drug lab is a mechanism simulator.** It shows what a drug's mechanism *could* do to a fold, not how well a drug works in patients.
+- **Gene "active / silenced" labels are predictions** from 3D accessibility and signal. RNA-seq can be added to check them.
+- **Validation so far** uses imaging-derived contacts, not sequencing Hi-C of the same cells, and absolute distances need calibration.
+- **Synthetic data is labelled.** The reference model and demo patients are synthetic, and the app labels them as such everywhere.
 
-### 3. EGNN Refinement
-An E(3)-equivariant graph neural network refines the embedded coordinates conditioned on per-node features (GC content, H3K27ac signal). The model is provably equivariant to rotations, reflections, and translations — verified by automated tests.
+## Licence
 
-### 4. Physics Analysis
-The reconstructed structure is analysed with polymer-physics metrics: radius of gyration, contact probability decay P(s) ∝ s⁻¹, Flory exponent, persistence length, and TAD/compartment detection.
+No licence has been chosen for this repository yet (see the open items in [`UPDATES.md`](UPDATES.md)). Until a `LICENSE` file is added, please ask the maintainers before reusing the code.
 
----
-
-## 📚 Documentation
-
-| Document | Description |
-|----------|-------------|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Detailed architecture, module reference, equations |
-| [APP_GUIDE.md](APP_GUIDE.md) | Complete application guide — every screen, graph, and function |
-| [AUDIT.md](AUDIT.md) | Audit trail from v1 → v3.2 with corrected equations |
-| [coordinates/README.md](coordinates/README.md) | Coordinate file format specification |
-
----
-
-## 🛠️ Tech Stack
-
-| Component | Technology |
-|-----------|------------|
-| **Web Framework** | Streamlit 1.50+ |
-| **3D Visualisation** | Plotly 6.0+ (WebGL mesh3d) |
-| **ML Framework** | PyTorch 2.2+ |
-| **Scientific Computing** | NumPy, Pandas, SciPy |
-| **Contact Maps** | h5py (HDF5 / .mcool) |
-| **PDF Export** | fpdf2 |
-| **AI Interpreter** | Gemini API / OpenRouter (optional) |
-| **GPU Training** | Google Colab (T4) |
-| **Testing** | pytest (83 tests) |
-
----
-
-## 🧪 Testing
-
-The test suite covers physics identities, EGNN equivariance, format round-trips, UI regressions, and feature correctness:
-
-```bash
-python -m pytest                    # Run all 83 tests
-python -m pytest tests/test_core.py # Core physics & formats
-python -m pytest tests/test_egnn.py # EGNN model tests
-python -m pytest -v                 # Verbose output
-```
-
----
-
-## 👥 Team NU-13
-
-Built for the hackathon by **Team NU-13** ([@WolframNU13](https://github.com/WolframNU13)).
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License.
-]]>
+Reference data: GRCh38 annotation and genes from the UCSC Genome Browser (RefSeq Select / MANE). The validation data is from Bintu et al., *Science* 2018, via [github.com/BogdanBintu/ChromatinImaging](https://github.com/BogdanBintu/ChromatinImaging). It is downloaded on demand, not redistributed.

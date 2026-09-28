@@ -1,10 +1,10 @@
 # ChronoCell-5D, explained simply
 
-*A guide for judges: what the website does, why it matters, and the ideas behind it, in plain words and everyday analogies. No biology or physics background needed.*
+*What the application does, why it matters, and the ideas behind it, in plain words and everyday analogies. No biology or physics background needed.*
 
 ---
 
-## The 30-second pitch
+## In 30 seconds
 
 Every cell in your body carries about **two metres of DNA**, squeezed into a nucleus about 100 times thinner than a hair. The DNA isn't stuffed in randomly. **How it is folded decides which genes can be read.** When the folding goes wrong, cells can turn cancerous, age badly, or contribute to diseases such as Parkinson's.
 
@@ -239,11 +239,19 @@ We are strict about this, and the website labels it everywhere.
 - Gene "active / silenced" labels: predictions from shape and marks, which can be checked against RNA-seq.
 - ChronoAgent's therapy section: research ideas, never treatment advice.
 
-We measured the reconstruction's accuracy against structures whose true shape we knew (synthetic ones). The rebuilt shapes matched with a distance correlation of 0.93–0.97. Accuracy on real chromatin needs imaging data (chromatin tracing) that weren't available here.
+**How accurate is the 3D reconstruction?**
+
+- **On synthetic structures** whose true shape is known, rebuilt shapes match with a distance correlation of 0.93–0.97. This tests the software, but it is optimistic: the synthetic data follows the same physics the reconstruction assumes.
+- **On real microscopy data** (chromatin tracing, Bintu et al., *Science* 2018), tested on cells the model never saw:
+  - Once the obvious "further along the DNA = further apart" trend is removed, the model recovers **36–54 % of the reproducible folding pattern**. A guess based on DNA distance alone recovers none.
+  - On raw rank agreement, that simple distance rule still scores higher than the model (0.91–0.96 vs 0.51–0.86).
+  - Absolute sizes come out about 3× too small until the length scale is calibrated.
+
+Method, per-dataset numbers and limitations: [`validation/RESULTS.md`](../validation/RESULTS.md).
 
 ---
 
-## 6. Under the hood (for technical judges)
+## 6. Under the hood
 
 | Part | What it is |
 |---|---|
@@ -260,19 +268,7 @@ We measured the reconstruction's accuracy against structures whose true shape we
 
 ---
 
-## 7. A 3-minute demo script
-
-1. **(20 s)** Open the site. It shows the reference chromosome 22, labelled as synthetic. In the sidebar, switch on **Load demo patients**.
-2. **(30 s)** Page **01**: spin the chromosome. Point at the four cards. Switch the sidebar to **Disease State / Cancer** and read "+x% vs Healthy". Colour by **Epigenomic Signal Heatmap**: the magenta hotspots are over-active regions.
-3. **(40 s)** Page **03 Compare**: healthy vs cancer. Rotate one view and the other follows. The dark-red region is what the disease changed; the list names the genes that live there.
-4. **(40 s)** Page **04 Drug lab**: the BET inhibitor is marked ★ best match. **Drag the dose slider** and watch the fold contract toward healthy. Show the ranking, then switch to an HDAC inhibitor: "wrong direction for this defect, so no effect". Then say the key line: *"the right drug depends on the shape of the defect."*
-5. **(30 s)** Page **05 Genes**: type **BCR** (the leukaemia gene). Is it open or buried, and which genes does it touch in 3D?
-6. **(20 s)** Scroll to **ChronoAgent**, press **Analyse**, and download the **PDF dossier**.
-7. **(Optional, 20 s)** Page **02 4D**: play the **Philadelphia chromosome** scenario.
-
----
-
-## 8. Questions judges often ask
+## 7. Frequently asked questions
 
 **Is this a diagnostic tool?**
 No. It is a research workstation. Every simulated or predicted element is labelled, and the PDF says "research use only" on every page.
@@ -291,12 +287,12 @@ Most tools show contact maps as flat 2D heatmaps. ChronoCell-5D combines, in one
 - a drug-mechanism sandbox;
 - an explainer that turns numbers into a readable report.
 
-**What would you do next?**
+**What's next?**
 - Run the pipeline on public patient-derived Micro-C data.
-- Validate against imaging (chromatin tracing).
+- Extend the microscopy validation from imaging-derived contacts to sequencing Hi-C of the same cells.
 - Train the equivariant network across many cells so it learns general folding rules.
 - Calibrate the drug lab with before-and-after treatment data.
 
 ---
 
-*ChronoCell-5D is for research and education, not medical advice. Full technical manual: `APP_GUIDE.md`.*
+*ChronoCell-5D is for research and education, not medical advice. Full technical manual: [`APP_GUIDE.md`](../APP_GUIDE.md).*

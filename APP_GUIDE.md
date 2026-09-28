@@ -17,7 +17,7 @@ python -m chronocell.demo_states demo_states   # optional: synthetic Healthy / D
 - **Patient data:** `.bed`, `.bedGraph`, `.bigWig` tracks; `.cool`, `.mcool`, `.hic` and text contact maps; RNA-seq tables.
 - **Exports:** PDF research dossier (with 3D snapshots), animated GIF for 4D, PNG camera button, side-by-side image.
 - **Demo patients** switch, **API key from `.streamlit/secrets.toml`**, and a reference model cached to disk (fast start).
-- A plain-language line under every page title. For judges: **JUDGES_GUIDE.md**.
+- A plain-language line under every page title. A plain-language overview of the whole project: **docs/OVERVIEW.md**.
 
 **New in v3.1** (added without removing anything):
 - A **Biological state** selector (Healthy Control, Disease State / Cancer, Senescent State) backed by a format-based data engine: files are recognised by content, not by fixed names (§12).
@@ -124,9 +124,8 @@ ui/compare.py, ui/sync_view.py Compare page; linked-camera dual viewport        
 ui/drug_lab.py, ui/genes_view.py, ui/guide.py   Drug lab, Genes and Guide pages                          (v3.2)
 static/                        plotly.js served locally for the linked viewports (auto-created)          (v3.2)
 .chronocell_cache/             reference-model and demo-patient cache (auto-created, git-ignored)        (v3.2)
-JUDGES_GUIDE.md                the whole project in plain language with analogies                        (v3.2)
+docs/OVERVIEW.md               the whole project in plain language with analogies                        (v3.2)
 AUDIT.md                       v1 audit and benchmark; APP_GUIDE.md = this file
-legacy/app_v1.py               original app, kept for reference
 .streamlit/config.toml         theme (light paper / ink / cobalt), upload limit 512 MB
 ```
 

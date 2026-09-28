@@ -2,7 +2,7 @@
 
 **Real data.** The ground truth is Bintu et al., *Science* 2018 (chromatin tracing). It gives the measured 3D position, in nanometres, of every 30 kb piece of DNA, in thousands of individual human cells. Public data: github.com/BogdanBintu/ChromatinImaging.
 
-**Rerun:** `python validation/validate_tracing.py` (about 1 minute). Raw numbers are in `validation/results.json`.
+**Rerun:** `python validation/validate_tracing.py` (about 1 minute). On the first run it downloads the three tracing datasets (about 16 MB) into `validation/data/`, which is not committed. Raw numbers are in `validation/results.json`.
 
 ## How it was measured
 

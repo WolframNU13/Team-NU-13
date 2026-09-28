@@ -17,7 +17,7 @@ trivial "further along the DNA = further in space" trend (distance-corrected); L
 and two references: a baseline that only knows genomic separation, and the ceiling = how well the
 two halves of the experiment agree with each other.
 
-    python validation/validate_tracing.py            # writes validation/results.json + results.md
+    python validation/validate_tracing.py            # writes validation/results.json (data downloads on first run)
 """
 
 from __future__ import annotations

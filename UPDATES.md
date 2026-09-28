@@ -441,3 +441,37 @@ Spearman ρ as a % of the ceiling, Σ model / Σ ceiling):
 answered until they are. Next: run `python validation/validate_tracing.py` once, record the result
 here, and update `validation/RESULTS.md` whatever it shows. The full 101-test suite was not rerun for
 this commit; only new files and the validation script changed.
+
+**19:53 — 19:55 · Held-out TEST run (once, settings frozen beforehand).** `python validation/validate_tracing.py`,
+3 datasets × 3 splits → `validation/results.json`. Trend-removed Spearman ρ as a % of the ceiling:
+
+| Test dataset | v3.2 single structure | **v3.3 ensemble** | 100 trajectories | No 3D (direct inversion) |
+|---|---|---|---|---|
+| IMR90 chr21:28–30 Mb | 39.1 % | **88.2 %** | 88.4 % | 81.4 % |
+| A549 chr21:28–30 Mb | 54.2 % | **91.2 %** | 91.5 % | 87.9 % |
+| IMR90 chr21:18–20 Mb (ceiling 0.25) | 35.2 % | **54.4 %** (±11 points across splits) | 53.2 % | 42.3 % |
+| **Overall, Σ model / Σ ceiling (pre-registered)** | **45.2 %** | **85.6 %** | **85.7 %** | 79.7 % |
+
+**Also recorded, favourable or not:**
+- The unweighted mean of the per-dataset ratios is 77.9 %.
+- Raw ρ of the v3.3 ensemble is 0.976 / 0.952 / 0.868. The genomic-distance baseline scores
+  0.930 / 0.915 / **0.962**, so the model loses on raw ρ on the weak 18–20 Mb region.
+- Lin's CCC (nm) is 0.97 / 0.93 / 0.46.
+- Contact-map fit is 0.99 / 0.99 / 0.97.
+- The ensemble's cell-to-cell spread (CV 0.42, fixed by the Gaussian model) is below the measured
+  0.50–0.58.
+
+**Conclusion:** the requester's target (overall 80–90 %) is met on held-out data under the rule fixed
+before tuning: **85.6 %**. The weak-structure region remains far below it.
+
+**19:58 · Documentation updated to match:**
+- `validation/RESULTS.md` rewritten: protocol, the two scores, full tables and an honest reading.
+- The accuracy sections of `README.md` and `docs/OVERVIEW.md` updated. Both say the population model
+  runs on windows and is **not yet built into the app's pages**.
+- Test count updated from 101 to 108.
+
+**Full test suite: 108 passed** (the 101 existing tests plus 7 new).
+
+**Found in passing, not a fix:** the requested "positive, data-fitted γ" is already how the code works
+(`physics.contact_decay` / `domains.decay_exponent` fit P(s) ~ s^-γ from data, with γ > 0). The
+negative-γ error was only in the pasted spec.

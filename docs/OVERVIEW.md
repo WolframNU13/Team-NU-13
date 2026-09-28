@@ -243,9 +243,18 @@ We are strict about this, and the website labels it everywhere.
 
 - **On synthetic structures** whose true shape is known, rebuilt shapes match with a distance correlation of 0.93–0.97. This tests the software, but it is optimistic: the synthetic data follows the same physics the reconstruction assumes.
 - **On real microscopy data** (chromatin tracing, Bintu et al., *Science* 2018), tested on cells the model never saw:
-  - Once the obvious "further along the DNA = further apart" trend is removed, the model recovers **36–54 % of the reproducible folding pattern**. A guess based on DNA distance alone recovers none.
-  - On raw rank agreement, that simple distance rule still scores higher than the model (0.91–0.96 vs 0.51–0.86).
-  - Absolute sizes come out about 3× too small until the length scale is calibrated.
+  - **v3.3 population model:** the settings were tuned on separate practice datasets, and the test
+    datasets were then run once.
+    - Beyond the obvious "further along the DNA = further apart" trend, it recovers **85.6 %
+      overall** of the folding pattern the experiment can reproduce.
+    - By region: 88 % and 91 % on the two structured regions, 54 % on a weak-structure region.
+    - A guess based on DNA distance alone recovers none.
+  - **v3.2 single structure:** 45 % overall (36–54 % per region).
+  - **Absolute sizes** now match the microscopy (Lin's CCC 0.93–0.97 on the structured regions).
+  - **Where it falls short:** on the weak-structure region, the simple distance rule still ranks
+    pairs better (0.96 vs 0.87).
+  - **Where it runs today:** the population model runs on windows of up to a few hundred beads
+    (`chronocell/ensemble.py`) and is not yet built into the app's pages.
 
 Method, per-dataset numbers and limitations: [`validation/RESULTS.md`](../validation/RESULTS.md).
 

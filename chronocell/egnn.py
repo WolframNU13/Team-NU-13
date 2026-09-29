@@ -207,6 +207,19 @@ def steric_loss(x: torch.Tensor, pi: torch.Tensor, pj: torch.Tensor, d_min: floa
     return torch.sum(torch.relu(d_min - _dist(x, pi, pj)) ** 2) / x.shape[0]
 
 
+def bend_loss(x: torch.Tensor, cos0: float = 0.0) -> torch.Tensor:
+    """Bending stiffness: mean (cos theta_i - cos0)^2 over consecutive bond pairs (twin of physics.loss_bend)."""
+    v = x[1:] - x[:-1]
+    v = v / torch.sqrt((v * v).sum(-1, keepdim=True) + EPS ** 2)
+    return torch.mean(((v[1:] * v[:-1]).sum(-1) - cos0) ** 2)
+
+
+def confinement_loss(x: torch.Tensor, radius: float) -> torch.Tensor:
+    """Nuclear-envelope confinement: mean max(0, |x_i - centre| - R)^2, R in b0 units (twin of physics.loss_confinement)."""
+    r = torch.sqrt(((x - x.mean(0)) ** 2).sum(-1) + EPS ** 2)
+    return torch.mean(torch.relu(r - radius) ** 2)
+
+
 # ----------------------------------------------------------------------------------------
 # Training
 # ----------------------------------------------------------------------------------------
@@ -232,6 +245,10 @@ class FitConfig:
     weight_decay: float = 1e-4       # network weights only, never coordinates (would shrink P)
     lambda_smooth: float = 1.0
     lambda_steric: float = 20.0
+    lambda_bend: float = 0.0         # bending stiffness (off by default; see validation/TUNING.md)
+    bend_cos0: float = 0.0           # preferred cos of the angle between consecutive bonds (0 = no bias)
+    lambda_confine: float = 0.0      # nuclear-envelope confinement (off by default)
+    confine_radius_nm: float | None = None   # sphere radius around the centre of mass
     alpha: float = physics.ALPHA
     d_min: float = physics.D_MIN_FACTOR   # b0 units
     hidden: int = 32
@@ -328,7 +345,8 @@ def fit_structure(n: int, node_feat: np.ndarray, ci: np.ndarray, cj: np.ndarray,
                   cfg: FitConfig | None = None, b0: float = physics.B0_NM,
                   init_nm: np.ndarray | None = None,
                   progress: Callable[[str, int, int, dict[str, float]], None] | None = None) -> FitResult:
-    """Minimise L_total = L_contact + lambda_smooth L_smooth + lambda_steric L_steric.
+    """Minimise L_total = L_contact + lambda_smooth L_smooth + lambda_steric L_steric
+    [+ lambda_bend L_bend + lambda_confine L_confine, both off by default].
 
     The steric term uses a Verlet neighbour list (cutoff d_min + skin, rebuilt every
     `neighbor_every` epochs with the O(N) cell list), so memory never scales as N^2.
@@ -357,8 +375,9 @@ def fit_structure(n: int, node_feat: np.ndarray, ci: np.ndarray, cj: np.ndarray,
         x0 = random_walk(n, rng)
     p = nn.Parameter(torch.as_tensor(x0, dtype=torch.float32, device=dev))
 
-    history: dict[str, list[float]] = {k: [] for k in
-                                       ("epoch", "stage", "contact", "smooth", "steric", "total", "grad_norm")}
+    history: dict[str, list[float]] = {k: [] for k in ("epoch", "stage", "contact", "smooth", "steric", "bend",
+                                                       "confine", "total", "grad_norm")}
+    confine_r = cfg.confine_radius_nm / b0 if cfg.confine_radius_nm else None
     empty = torch.empty(0, dtype=torch.long, device=dev)
 
     def run_stage(name: str, epochs: int, forward: Callable[[], torch.Tensor], groups: list[dict],
@@ -382,13 +401,16 @@ def fit_structure(n: int, node_feat: np.ndarray, ci: np.ndarray, cj: np.ndarray,
             lc = contact_loss(x, ci_t, cj_t, tgt_t)
             ls = smooth_loss(x)
             lst = steric_loss(x, pi, pj, cfg.d_min) if steric_on else x.sum() * 0.0
-            total = lc + cfg.lambda_smooth * ls + cfg.lambda_steric * lst
+            lb = bend_loss(x, cfg.bend_cos0) if cfg.lambda_bend > 0 else x.sum() * 0.0
+            lcf = confinement_loss(x, confine_r) if cfg.lambda_confine > 0 and confine_r else x.sum() * 0.0
+            total = lc + cfg.lambda_smooth * ls + cfg.lambda_steric * lst + cfg.lambda_bend * lb + cfg.lambda_confine * lcf
             total.backward()
             gn = torch.nn.utils.clip_grad_norm_(params, cfg.grad_clip)
             opt.step()
             sched.step()
             row = {"epoch": offset + ep + 1, "stage": name, "contact": lc.item(), "smooth": ls.item(),
-                   "steric": lst.item(), "total": total.item(), "grad_norm": float(gn)}
+                   "steric": lst.item(), "bend": lb.item(), "confine": lcf.item(), "total": total.item(),
+                   "grad_norm": float(gn)}
             if not np.isfinite(row["total"]):
                 raise FloatingPointError(f"Non-finite loss in {name} at epoch {ep + 1}: {row}")
             for k, v in row.items():

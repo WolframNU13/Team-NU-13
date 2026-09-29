@@ -85,8 +85,8 @@ with _LOCK:
     _refresh_project_modules()
     for _attempt in (1, 2, 3):
         try:
-            from chronocell import (agent as A, domains, features, formats, genes as G, genome, pdf_report, physics,
-                                    snapshot as SN, states as S, theme as T, viz)
+            from chronocell import (accuracy as ACC, agent as A, domains, features, formats, genes as G, genome,
+                                    pdf_report, physics, snapshot as SN, states as S, theme as T, viz)
             from ui import agent_panel, compare, drug_lab, four_d, genes_view, guide, states_panel
             from ui.common import (SLOT_ROOT, Dataset, banner, clamp_window, esc, fmt, html, load_dataset, readout,
                                    slot_files, slot_graph, warning_card)
@@ -100,10 +100,10 @@ with _LOCK:
             _purge_project_modules()
     try:
         import torch
-        from chronocell import egnn
+        from chronocell import egnn, ensemble as ENS
         TORCH = True
     except ImportError:  # the viewer, physics, 4D scenarios and export work without PyTorch
-        torch = egnn = None
+        torch = egnn = ENS = None
         TORCH = False
     _stamp_project_modules()
 
@@ -111,8 +111,9 @@ st.set_page_config(page_title="ChronoCell-5D · chromatin 3D/4D workstation", pa
                    initial_sidebar_state="expanded")
 T.inject()
 
-VERSION = "3.2"
+VERSION = "3.3"
 MAX_FIT_BEADS = 2000
+MAX_ENSEMBLE_BEADS = 400      # population model: O(N^2) pairs, ~20 s for 300 beads on CPU
 MIN_FIT_CONTACTS = 20
 REGIONS = {"whole": "Whole chromosome", "centromere": "Centromere", "telomeres": "Telomeric ends",
            "hubs": "Enhancer hubs", "custom": "Custom window"}
@@ -120,6 +121,8 @@ SHORT = {"whole": "Whole", "centromere": "Centromere", "telomeres": "Telomeres",
          "custom": "Custom"}
 ss = st.session_state
 ss.setdefault("fits", {})
+ss.setdefault("ensembles", {})                # population models (v3.3), keyed like fits
+ss.setdefault("telemetry", [])                # execution telemetry of reconstructions run this session
 ss.setdefault("region_choice", "whole")
 ss.setdefault("custom_window", None)          # (lo, hi) in local bins; the single source of truth
 ss.setdefault("workspace", "3D structure")
@@ -575,7 +578,8 @@ def analysis_extras(coords: np.ndarray, lo: int, hi: int, key: str) -> tuple[dic
     return extras, dom, tab
 
 
-def dossier_builder(ctx, coords: np.ndarray, lo: int, hi: int, region_name: str, dom, tab):
+def dossier_builder(ctx, coords: np.ndarray, lo: int, hi: int, region_name: str, dom, tab,
+                    accuracy: dict | None = None):
     """Returns a function (analysis text, engine, question) -> PDF bytes for this view."""
     def build(text: str, engine: str, query: str) -> bytes:
         valid = ds.valid[lo:hi]
@@ -601,12 +605,12 @@ def dossier_builder(ctx, coords: np.ndarray, lo: int, hi: int, region_name: str,
         return pdf_report.build(ctx, text, engine, query, images, physics.local_density(coords, 1.5 * float(b0)),
                                 tab, G.summary(tab) if tab is not None else None,
                                 dom.summary(ch.resolution) if dom is not None else None, therapy,
-                                software=f"ChronoCell-5D {VERSION}")
+                                software=f"ChronoCell-5D {VERSION}", accuracy=accuracy)
     return build
 
 
 def chrono_agent(coords: np.ndarray, lo: int, hi: int, region: str, reconstruction: bool, scope: str,
-                 cards: bool = False) -> None:
+                 cards: bool = False, method: str | None = None, accuracy: dict | None = None) -> None:
     """Metric dashboard (optional) and the ChronoAgent panel for the structure in view."""
     key = vkey(scope, lo, hi, reconstruction, coords)
     try:
@@ -619,9 +623,9 @@ def chrono_agent(coords: np.ndarray, lo: int, hi: int, region: str, reconstructi
     if cards:
         agent_panel.metric_cards(ctx)
         return
-    method = "contact embedding + EGNN" if reconstruction else ("reference model" if ds.is_reference else "input")
+    method = method or ("contact embedding + EGNN" if reconstruction else ("reference model" if ds.is_reference else "input"))
     agent_panel.render(ctx, agent_cfg, pdb_for(coords, lo, method), scope,
-                       dossier_builder(ctx, coords, lo, hi, region, dom, tab))
+                       dossier_builder(ctx, coords, lo, hi, region, dom, tab, accuracy))
 
 
 def status_bar() -> None:
@@ -703,6 +707,7 @@ with head_r, st.container(key="seg_region"):
 
 fit_key = f"{ds.key}:{frame_idx}:{lo}:{hi}"
 fit = ss.fits.get(fit_key)
+ens = ss.ensembles.get(fit_key)
 g_lo, g_hi = ds.bin0 + lo, ds.bin0 + hi
 with head_l:
     html(f'<p class="cc-eyebrow" style="margin-top:22px">Fig. 1 — Reconstructed fold · {ch.name}</p>'
@@ -711,14 +716,44 @@ with head_l:
          f' · bins <span class="cc-num">{g_lo:,}–{g_hi - 1:,}</span> · {(hi - lo) * ch.resolution / 1e6:.2f} Mb</p>'
          f'<p class="cc-note">Each bead is {ch.resolution / 1000:g} kb of DNA; the tube follows the DNA from one end of '
          f'the region to the other. Beads that touch in 3D can switch each other’s genes on or off.</p>')
-    options = ["Input structure"] + (["EGNN reconstruction"] if fit is not None else [])
+    options = (["Input structure"] + (["EGNN reconstruction"] if fit is not None else [])
+               + (["Population model"] if ens is not None else []))
     shown = st.segmented_control("Structure", options, default=options[-1] if ss.get("show_fit") else options[0],
                                  required=True, key=f"structure_{fit_key}", label_visibility="collapsed") \
         if len(options) > 1 else options[0]
 
-using_fit = shown == "EGNN reconstruction" and fit is not None and len(fit.coords_nm) == hi - lo
+model_kind = None
+if shown == "EGNN reconstruction" and fit is not None and len(fit.coords_nm) == hi - lo:
+    model_kind = "egnn"
+elif shown == "Population model" and ens is not None and len(ens.representative_nm) == hi - lo:
+    model_kind = "ensemble"
+using_fit = model_kind is not None
+model_label = {"egnn": "EGNN reconstruction", "ensemble": "Population model · representative of 100 trajectories",
+               None: ds.structure_label}[model_kind]
+model_method = {"egnn": "contact embedding + EGNN", "ensemble": "maximum-entropy population model (v3.3)",
+                None: "reference model" if ds.is_reference else "input"}[model_kind]
 coords_now = ds.frames[frame_idx]
-sub = fit.coords_nm if using_fit else coords_now[lo:hi]
+sub = {"egnn": fit.coords_nm if fit is not None else None,
+       "ensemble": ens.representative_nm if ens is not None else None}.get(model_kind)
+if sub is None:
+    sub = coords_now[lo:hi]
+
+
+def accuracy_scores() -> dict:
+    """The two separate accuracy scores for the structure in view (see chronocell.accuracy)."""
+    if model_kind == "ensemble":
+        return ACC.two_scores("ensemble_v3_3", ens.config.get("window_contact_fit"))
+    fit_val = None
+    if ds.has_contacts:
+        wci_, wcj_, wcm_ = window_contacts(ds.key, ds, lo, hi)
+        fit_val = ACC.contact_fit_structure(sub, wci_, wcj_, wcm_)
+    return ACC.two_scores("single_structure_v3_2" if model_kind == "egnn" else "input", fit_val)
+
+
+try:
+    acc_scores = accuracy_scores()
+except Exception:  # a score must never take the page down
+    acc_scores = None
 phys = analyse(sub, float(b0), float(dmin_f))
 labels = hover_labels(ds.key, ds)
 focus_mask = None
@@ -737,10 +772,20 @@ if focus:
 # ======================================================================================
 @st.fragment
 def stage(ds: Dataset, lo: int, hi: int, focus_mask: np.ndarray | None, sub: np.ndarray, phys: dict,
-          labels: list[str], using_fit: bool, view_key: str, b0: float, coords_now: np.ndarray) -> None:
+          labels: list[str], using_fit: bool, view_key: str, b0: float, coords_now: np.ndarray,
+          model_label: str = "", population=None) -> None:
     ch = ds.chrom
     top_l, top_r = st.columns([4, 1], vertical_alignment="center")
+    n_view = hi - lo
     with top_r, st.container(horizontal=True, horizontal_alignment="right", gap="small"):
+        with st.popover("Measure"):
+            st.toggle("Distance probe", False, key="probe_on",
+                      help="Pick two beads by position; the 3D view marks them and draws the line between.")
+            if n_view >= 2:
+                b1 = st.number_input("Bead A (1 = first bead in view)", 1, n_view, 1, key=f"probe_a_{n_view}")
+                b2 = st.number_input("Bead B", 1, n_view, n_view, key=f"probe_b_{n_view}")
+                st.caption("Hover a bead in the view to see its number (bin) and locus.")
+                ss["probe_pair"] = (int(b1) - 1, int(b2) - 1)
         with st.popover("Display"):
             st.segmented_control("Rendering", ["Tube", "Beads", "Line"], default="Tube", required=True, key="disp_style")
             st.selectbox("Colour by", list(T.SCALES), key="disp_colour")
@@ -748,6 +793,11 @@ def stage(ds: Dataset, lo: int, hi: int, focus_mask: np.ndarray | None, sub: np.
             st.slider("Bead size (px)", 2, 12, 5, key="disp_bead")
             st.toggle("Show rest of chromosome", True, key="disp_context")
             st.select_slider("Viewport height", [560, 640, 720, 800, 880], 720, key="disp_height")
+            st.toggle("Slicing plane (cross-section)", False, key="clip_on",
+                      help="Hide everything beyond a plane to look inside the fold.")
+            if ss.get("clip_on"):
+                st.segmented_control("Plane normal", ["x", "y", "z"], default="z", required=True, key="clip_axis")
+                st.slider("Plane position (% of the fold's extent)", 0, 100, 50, key="clip_pos")
     style = ss.get("disp_style") or "Tube"
     colour = ss.get("disp_colour") or "Genomic position"
     idx = ds.gbin(np.arange(lo, hi))
@@ -765,10 +815,17 @@ def stage(ds: Dataset, lo: int, hi: int, focus_mask: np.ndarray | None, sub: np.
         ctx = coords_now[::max(1, ds.n // 2500)]
     extent = float(np.max(np.ptp(sub, axis=0))) if len(sub) > 1 else 1.0
     bar = float(10 ** np.floor(np.log10(max(extent / 4, 1.0))))
+    clip = None
+    if ss.get("clip_on"):
+        axis = "xyz".index(ss.get("clip_axis") or "z")
+        lo_ax, hi_ax = float(sub[:, axis].min()), float(sub[:, axis].max())
+        clip = (axis, lo_ax + (hi_ax - lo_ax) * float(ss.get("clip_pos", 50)) / 100.0)
+    probe = ss.get("probe_pair") if ss.get("probe_on") else None
     fig = viz.viewport(sub, idx, intensity, labels[lo:hi], scale=colour, focus_color=focus_color, style=style,
                        radius=float(ss.get("disp_radius", 0.30)) * b0, bead_px=int(ss.get("disp_bead", 5)),
                        height=int(ss.get("disp_height", 720)), context=ctx, uirevision=view_key,
-                       scale_bar_nm=bar, gc=ds.gc[lo:hi], epi=ds.epi[lo:hi], valid=ds.valid[lo:hi], chrom=ch)
+                       scale_bar_nm=bar, gc=ds.gc[lo:hi], epi=ds.epi[lo:hi], valid=ds.valid[lo:hi], chrom=ch,
+                       clip=clip, probe=probe)
 
     if colour == "Monochrome":
         legend = f'<span class="sw" style="background:{T.INK}"></span> chromatin fibre'
@@ -797,10 +854,26 @@ def stage(ds: Dataset, lo: int, hi: int, focus_mask: np.ndarray | None, sub: np.
                                 "toImageButtonOptions": {"format": "png", "scale": 3,
                                                          "filename": f"chronocell_{ch.name}_{lo}-{hi}"}})
 
+    if probe is not None and 0 <= probe[0] < n_view and 0 <= probe[1] < n_view and probe[0] != probe[1]:
+        i_p, j_p = sorted(probe)
+        d_now = float(np.linalg.norm(sub[i_p] - sub[j_p]))
+        g_i, g_j = ds.gbin(lo + i_p), ds.gbin(lo + j_p)
+        rows = [("Distance in this structure", f"{d_now:,.0f}", "nm"),
+                ("Along the DNA", f"{j_p - i_p:,} beads", f"{(j_p - i_p) * ch.resolution / 1000:,.0f} kb"),
+                ("Loci", f"{ch.name}:{int(ch.bin_start(g_i)) + 1:,}", f"{ch.name}:{int(ch.bin_start(g_j)) + 1:,}")]
+        if population is not None:
+            tr = population.trajectories_nm.reshape(-1, n_view, 3)
+            dd = np.linalg.norm(tr[:, i_p] - tr[:, j_p], axis=-1)
+            q1, q3 = np.percentile(dd, [25, 75])
+            rows += [("Population median (all trajectories)", f"{population.median_distance_nm[i_p, j_p]:,.0f}", "nm"),
+                     ("Middle 50 % of cells (model)", f"{q1:,.0f}–{q3:,.0f}", "nm"),
+                     ("Contact probability (model)", f"{population.contact_probability[i_p, j_p]:.3f}",
+                      f"< {population.config.get('r_c_nm', 0):.0f} nm")]
+        readout(rows)
     fitv = phys["fit"]
     spec_l, spec_r = st.columns([1, 1])
     spec_l.markdown(
-        f'<ul class="cc-spec"><li><b>{"EGNN reconstruction" if using_fit else ds.structure_label}</b></li>'
+        f'<ul class="cc-spec"><li><b>{model_label or ds.structure_label}</b></li>'
         f'<li>R<sub>g</sub> <span class="cc-num">{fmt(phys["rg"], 0)}</span> nm · '
         f'ν <span class="cc-num">{fmt(fitv.nu, 3)}</span> ({fitv.regime}) · '
         f'<span class="cc-num">{phys["steric"].overlaps}</span> overlaps</li></ul>', unsafe_allow_html=True)
@@ -812,7 +885,8 @@ def stage(ds: Dataset, lo: int, hi: int, focus_mask: np.ndarray | None, sub: np.
 main_l, main_r = st.columns([2.2, 1], gap="large")
 with main_l:
     chrono_agent(sub, lo, hi, REGIONS[region], using_fit, "3d", cards=True)
-    stage(ds, lo, hi, focus_mask, sub, phys, labels, using_fit, f"{fit_key}:{shown}", float(b0), coords_now)
+    stage(ds, lo, hi, focus_mask, sub, phys, labels, using_fit, f"{fit_key}:{shown}", float(b0), coords_now,
+          model_label, ens if model_kind == "ensemble" else None)
 
 # ======================================================================================
 # Inspector
@@ -951,8 +1025,11 @@ with main_r, st.container(height=int(ss.get("disp_height", 720)) + 120, key="ins
                 wci, wcj, wcm = window_contacts(ds.key, ds, lo, hi)
                 bar_ = st.progress(0.0, text="Contact embedding…")
                 total = int(pre + ref)
+                stage_t: dict[str, list[float]] = {}
 
                 def on_epoch(stage_name: str, ep: int, tot: int, row: dict) -> None:
+                    now = time.time()
+                    stage_t.setdefault(stage_name, [now, now, 0.0])[1:] = [now, row["total"]]
                     done = ep if stage_name == "embed" else int(pre) + ep
                     if done % 10 == 0 or done == total:
                         label = "Contact embedding" if stage_name == "embed" else "EGNN refinement"
@@ -962,8 +1039,18 @@ with main_r, st.container(height=int(ss.get("disp_height", 720)) + 120, key="ins
                                      d_min=float(dmin_f))
                 feats = egnn.node_features(ds.gc[lo:hi], ds.epi[lo:hi], ds.valid[lo:hi])
                 try:
-                    ss.fits[fit_key] = egnn.fit_structure(n_win, feats, wci, wcj, wcm, cfg, b0=float(b0),
-                                                          progress=on_epoch)
+                    res_fit = egnn.fit_structure(n_win, feats, wci, wcj, wcm, cfg, b0=float(b0), progress=on_epoch)
+                    ss.fits[fit_key] = res_fit
+                    c_fit = ACC.contact_fit_structure(res_fit.coords_nm, wci, wcj, wcm)
+                    names = {"embed": "contact embedding", "refine": "EGNN refinement"}
+                    for sname, (t_a, t_b, last) in stage_t.items():
+                        ss.telemetry.append({"Model": "v3.2 single structure", "Window": f"{g_lo:,}–{g_hi - 1:,}",
+                                             "Beads": n_win, "Stage": names.get(sname, sname),
+                                             "Time (s)": round(t_b - t_a, 2),
+                                             "ms / bead": round(1000 * (t_b - t_a) / n_win, 2),
+                                             "Device": res_fit.config.get("device_used", "cpu"),
+                                             "Final loss": round(float(last), 5),
+                                             "Contact-map fit": round(c_fit, 3) if np.isfinite(c_fit) else None})
                     ss.show_fit = True
                     st.rerun()
                 except (ValueError, FloatingPointError) as exc:
@@ -985,6 +1072,94 @@ with main_r, st.container(height=int(ss.get("disp_height", 720)) + 120, key="ins
                             width="stretch", config=T.PLOT_CONFIG, key="loss")
             html('<p class="cc-note">Contact data fix a structure only up to reflection, so accuracy is measured over '
                  'O(3). On planted structures, EGNN refinement matches plain coordinate refinement (AUDIT.md §5).</p>')
+        # ---- population model (v3.3) ----
+        html('<p class="cc-eyebrow" style="margin-top:14px">Population model (v3.3) · validated on real microscopy</p>')
+        html('<p class="cc-note">Every cell folds differently, and Hi-C averages thousands of cells. The population model '
+             'fits a maximum-entropy ensemble of chains to the contacts (HIPPS/DIMES approach) and draws 100 exact '
+             'Langevin trajectories from it. The view shows the most typical member; the distance probe reports the '
+             'whole population. Members are Gaussian chains without excluded volume, so a single member can show bead '
+             'overlaps: read the population statistics, not the fine detail of one member.</p>')
+        n_win_ctc = int(((ds.ci >= lo) & (ds.ci < hi) & (ds.cj >= lo) & (ds.cj < hi)).sum()) if ds.has_contacts else 0
+        if not TORCH:
+            html('<p class="cc-note">Needs PyTorch (<code>pip install torch</code>).</p>')
+        elif not ds.has_contacts:
+            html('<p class="cc-note">Needs contacts (Data → Graph).</p>')
+        elif n_win > MAX_ENSEMBLE_BEADS:
+            html(f'<p class="cc-note">This window has {n_win:,} beads; the population model handles up to '
+                 f'{MAX_ENSEMBLE_BEADS} (about 20 s for 300 on CPU). Choose <b>Custom window</b> and narrow it.</p>')
+        elif n_win_ctc < MIN_FIT_CONTACTS:
+            html('<p class="cc-note">Too few contacts in this window for a population model.</p>')
+        else:
+            with st.form("ens_form", border=False):
+                p_adj = st.slider("Adjacent-bead contact probability (assumption)", 0.2, 0.9, 0.5, 0.05,
+                                  help="Sequencing counts are relative, so one number must be assumed: how often two "
+                                       "neighbouring beads touch. It sets the probability scale; lengths stay anchored "
+                                       "to b₀ either way.")
+                go_ens = st.form_submit_button("Build population model (100 trajectories)", width="stretch")
+            if go_ens:
+                wci, wcj, wcm = window_contacts(ds.key, ds, lo, hi)
+                bar_e = st.progress(0.0, text="Fitting the ensemble…")
+
+                def on_step(it: int, tot: int, row: dict) -> None:
+                    if it % 50 == 0 or it == tot:
+                        bar_e.progress(min(it / max(tot, 1), 1.0), text=f"Fitting the ensemble · step {it}/{tot} · "
+                                                                         f"misfit {row['loss']:.4f}")
+                try:
+                    res_e = ENS.fit_from_counts(wci, wcj, wcm, n_win, ds.valid[lo:hi], b0_nm=float(b0),
+                                                p_adjacent=float(p_adj), progress=on_step)
+                    c_fit = ACC.spearman(res_e.contact_probability[wci, wcj], wcm)
+                    res_e.config["window_contact_fit"] = c_fit
+                    ss.ensembles[fit_key] = res_e
+                    for sname, secs, loss in (("ensemble fit", res_e.config["fit_seconds"], res_e.history["best_loss"][0]),
+                                              ("Langevin sampling (100 × 50)", res_e.config["sampling_seconds"], None)):
+                        ss.telemetry.append({"Model": "v3.3 population", "Window": f"{g_lo:,}–{g_hi - 1:,}",
+                                             "Beads": n_win, "Stage": sname, "Time (s)": round(secs, 2),
+                                             "ms / bead": round(1000 * secs / n_win, 2),
+                                             "Device": res_e.config.get("device_used", "cpu"),
+                                             "Final loss": None if loss is None else round(float(loss), 5),
+                                             "Contact-map fit": round(c_fit, 3) if np.isfinite(c_fit) else None})
+                    ss.show_fit = True
+                    ss[f"structure_{fit_key}"] = "Population model"
+                    st.rerun()
+                except (ValueError, FloatingPointError) as exc:
+                    st.error(f"Population model stopped: {exc}")
+        if ens is not None:
+            readout([("Runtime", f"{ens.seconds:.1f}", f"s on {ens.config.get('device_used', 'cpu')}"),
+                     ("Trajectories × frames", f"{ens.trajectories_nm.shape[1]} × {ens.trajectories_nm.shape[0]}", ""),
+                     ("Assumed adjacent contact probability", f"{ens.config.get('p_adjacent_assumed', float('nan')):.2f}",
+                      f"r_c = {ens.config.get('r_c_nm', float('nan')):.0f} nm"),
+                     ("Cell-to-cell spread (CV)", f"{ens.spread_cv:.2f}", "Gaussian model: 0.42")])
+            st.plotly_chart(viz.ensemble_loss_chart(ens.history), theme=None, width="stretch", config=T.PLOT_CONFIG,
+                            key="ens_loss")
+
+        # ---- the two accuracy scores, never mixed ----
+        html('<p class="cc-eyebrow" style="margin-top:14px">Accuracy · two separate scores</p>')
+        if acc_scores:
+            cf = acc_scores["contact_map_fit"]["value"]
+            mic = acc_scores["microscopy_accuracy"]
+            readout([
+                ("Contact-map fit<small>this window · model vs the contacts it was built from · shows convergence, "
+                 "not correctness</small>", "—" if cf is None else f"{cf:.3f}", "Spearman ρ"),
+                ("Microscopy accuracy<small>method benchmark on held-out imaging (Bintu 2018) · not measured on this "
+                 "window</small>", "—" if mic is None else f"{mic['overall_percent_of_ceiling']:.1f} %",
+                 "of reproducible structure" if mic else "no benchmark for this structure"),
+            ])
+            if mic:
+                html('<p class="cc-note">Per test dataset: ' + " · ".join(
+                    f"{esc(k)} {v:.0f} %" for k, v in mic["per_dataset_percent_of_ceiling"].items())
+                     + '. Details: <code>validation/RESULTS.md</code>.</p>')
+            elif model_kind is None:
+                html('<p class="cc-note">The input structure is not a reconstruction, so no microscopy benchmark applies. '
+                     'Build a model above to see its benchmark.</p>')
+
+        # ---- execution telemetry ----
+        if ss.telemetry:
+            html('<p class="cc-eyebrow" style="margin-top:14px">Execution telemetry · this session</p>')
+            st.dataframe(pd.DataFrame(ss.telemetry[::-1]), hide_index=True, width="stretch",
+                         height=min(38 + 35 * len(ss.telemetry), 300), key="telemetry_table")
+            html('<p class="cc-note">Measured wall-clock times on this machine; contact-map fit is Spearman ρ against the '
+                 'window\'s own input contacts.</p>')
+
         if TORCH:
             if st.button("Verify E(3) equivariance", key="equiv"):
                 ss.equiv_result = equivariance_report()
@@ -1006,7 +1181,7 @@ with main_r, st.container(height=int(ss.get("disp_height", 720)) + 120, key="ins
             e_lo, e_coords = lo, sub
         start_bin = ds.bin0 + e_lo
         gc_full, epi_full = full_track(ds, ds.gc), full_track(ds, ds.epi)
-        method = "contact embedding + EGNN" if using_fit else ("reference model" if ds.is_reference else "input")
+        method = model_method
         try:
             pdb_text, frame = formats.write_pdb(e_coords, start_bin, gc_full, epi_full, ds.epi_ref,
                                                 source=ds.structure_label, method=method, chrom=ch)
@@ -1045,9 +1220,16 @@ with main_r, st.container(height=int(ss.get("disp_height", 720)) + 120, key="ins
                         "regime": e_phys["fit"].regime, "overlaps": e_phys["steric"].overlaps,
                         "l_smooth": e_phys["l_smooth"]},
         }
-        if using_fit:
+        if model_kind == "egnn":
             report["fit"] = {"seconds": fit.seconds, "config": fit.config,
                              "final": {k: fit.history[k][-1] for k in ("contact", "smooth", "steric", "total")}}
+        elif model_kind == "ensemble":
+            report["population_model"] = {
+                "seconds": ens.seconds, "config": ens.config, "best_misfit": ens.history["best_loss"][0],
+                "trajectories": int(ens.trajectories_nm.shape[1]), "frames": int(ens.trajectories_nm.shape[0]),
+                "spread_cv": ens.spread_cv, "exported_structure": "representative member (closest to the median map)"}
+        if scope == "This window" and acc_scores:
+            report["accuracy"] = acc_scores
         report_text = formats.report_json(report)
         if check is not None:
             tag = ('<span class="cc-tag ok">wwPDB columns · pass</span>' if check.ok
@@ -1065,6 +1247,15 @@ with main_r, st.container(height=int(ss.get("disp_height", 720)) + 120, key="ins
                            icon=":material/download:")
         c1.download_button("Bins (CSV)", table.to_csv(index=False, float_format="%.4f"), f"{stem}_bins.csv",
                            "text/csv", width="stretch", icon=":material/download:")
+        if model_kind == "ensemble" and scope == "This window":
+            idx_w = ds.gbin(np.arange(lo, hi))
+            try:
+                pop_pdb = formats.write_pdb_trajectory(ens.frames_nm, idx_w + 1, np.full(hi - lo, formats.segment_id(ch.name)),
+                                                       ch, "population model, 100 trajectories (last frame)", model_method)
+                c2.download_button("Population (PDB, 100 models)", pop_pdb, f"{stem}_population.pdb", "chemical/x-pdb",
+                                   width="stretch", icon=":material/download:")
+            except ValueError as exc:
+                st.caption(f"Population PDB unavailable: {exc}")
         html('<p class="cc-note">PDB coordinates are nanometres shifted into the positive octant so a whole '
              'chromosome fits the %8.3f columns; REMARK 250 records chromosome, window, unit and offset, and '
              'ChronoCell reads them back onto the right loci. Occupancy = f<sub>GC</sub>; B-factor = log-scaled H3K27ac.</p>')
@@ -1104,11 +1295,11 @@ with main_r, st.container(height=int(ss.get("disp_height", 720)) + 120, key="ins
 # ======================================================================================
 # ChronoAgent (fragment: questions and analyses re-render only the panel)
 # ======================================================================================
-chrono_agent(sub, lo, hi, REGIONS[region], using_fit, "3d")
+chrono_agent(sub, lo, hi, REGIONS[region], using_fit, "3d", method=model_method, accuracy=acc_scores)
 
 # ======================================================================================
 # Status bar
 # ======================================================================================
-html(f'<div class="cc-status"><span>Structure · {ds.structure_label}{" (EGNN reconstruction shown)" if using_fit else ""}'
+html(f'<div class="cc-status"><span>Structure · {ds.structure_label}{f" ({model_label} shown)" if using_fit else ""}'
      f'</span><span>Tracks · {ds.tracks_label}</span><span class="cc-num">{ch.name} · {ch.resolution / 1000:g} kb · '
      f'b₀ {b0:.0f} nm · α {alpha:g} · d_min {dmin_f * b0:.0f} nm</span></div>')

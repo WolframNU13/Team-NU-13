@@ -97,6 +97,25 @@ def render(version: str) -> None:
          '<dt>Reference model</dt><dd>A synthetic stand-in shown until real data arrive — a mannequin in the shop '
          'window until the real person walks in.</dd></dl>')
 
+    html('<h2 class="cc-h2">How accurate is it? Two scores, never mixed</h2>')
+    html('<div class="cc-analogy"><b>The exam analogy.</b> <i>Contact-map fit</i> is like checking a student against '
+         'the homework they copied from: a high mark only shows they copied carefully. <i>Microscopy accuracy</i> is the '
+         'real exam: questions they never saw. We report both, side by side, and never add them together.</div>')
+    html('<dl class="cc-gloss">'
+         '<dt>Contact-map fit</dt><dd>How well the 3D model reproduces the contact data it was built from (Spearman '
+         '\u03c1, measured live on your window). It shows the fit converged, not that the shape is right.</dd>'
+         '<dt>Microscopy accuracy</dt><dd>How well the <b>method</b> predicts distances measured under a microscope in '
+         'cells it never saw (chromatin tracing, Bintu et al. 2018). The <b>population model</b> recovers 85.6 % of '
+         'the folding pattern the experiment can reproduce; the older single-structure model recovers 45 %. It is a '
+         'property of the method, not a measurement on your data. Full details are in <code>validation/RESULTS.md</code>.</dd>'
+         '<dt>Population model</dt><dd>One chromosome folds differently in every cell, like a crowd of people each '
+         'standing a little differently. The population model builds the whole crowd (100 trajectories), not one '
+         'average person. Find it under 01 3D structure \u2192 03 Model &amp; convergence, on windows of up to 400 '
+         'beads.</dd>'
+         '<dt>Measure and Slicing plane</dt><dd><i>Measure</i> (above the view) gives the distance between any two '
+         'beads, and for the population model the typical range across cells. <i>Display \u2192 Slicing plane</i> cuts '
+         'the fold open like slicing a cake, to see inside.</dd></dl>')
+
     html('<h2 class="cc-h2">Bring your own data</h2>')
     st.dataframe([
         {"You have": "3D coordinates", "Formats": ".npy (N×3), .pdb, .npz bundle, .xyz, .csv",

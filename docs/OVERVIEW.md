@@ -194,7 +194,7 @@ A built-in plain-language manual, the 2-minute version of this document. Its but
 
 - It uses the exact numbers on screen: size, compaction, crowding, activity, genes, neighbourhoods and your latest drug-lab result.
 - It writes four sections:
-  1. **Biophysical diagnosis**: what the shape means (for example, "decompacted, open domains").
+  1. **Biophysical assessment**: what the shape means (for example, "decompacted, open domains").
   2. **Therapeutic strategy (research hypotheses)**: which drug mechanisms would be worth testing, and why.
   3. **Expression & accessibility insights**: which genes are likely switched on or off.
   4. **Answer to your question**: anything you type.
@@ -243,9 +243,18 @@ We are strict about this, and the website labels it everywhere.
 
 - **On synthetic structures** whose true shape is known, rebuilt shapes match with a distance correlation of 0.93–0.97. This tests the software, but it is optimistic: the synthetic data follows the same physics the reconstruction assumes.
 - **On real microscopy data** (chromatin tracing, Bintu et al., *Science* 2018), tested on cells the model never saw:
-  - Once the obvious "further along the DNA = further apart" trend is removed, the model recovers **36–54 % of the reproducible folding pattern**. A guess based on DNA distance alone recovers none.
-  - On raw rank agreement, that simple distance rule still scores higher than the model (0.91–0.96 vs 0.51–0.86).
-  - Absolute sizes come out about 3× too small until the length scale is calibrated.
+  - **v3.3 population model:** the settings were tuned on separate practice datasets, and the test
+    datasets were then run once.
+    - Beyond the obvious "further along the DNA = further apart" trend, it recovers **85.6 %
+      overall** of the folding pattern the experiment can reproduce.
+    - By region: 88 % and 91 % on the two structured regions, 54 % on a weak-structure region.
+    - A guess based on DNA distance alone recovers none.
+  - **v3.2 single structure:** 45 % overall (36–54 % per region).
+  - **Absolute sizes** now match the microscopy (Lin's CCC 0.93–0.97 on the structured regions).
+  - **Where it falls short:** on the weak-structure region, the simple distance rule still ranks
+    pairs better (0.96 vs 0.87).
+  - **Where it runs today:** the population model runs in the app on windows of up to 400 beads
+    (3D structure → 03 Model & convergence → *Build population model*).
 
 Method, per-dataset numbers and limitations: [`validation/RESULTS.md`](../validation/RESULTS.md).
 

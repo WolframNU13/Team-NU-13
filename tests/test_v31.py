@@ -143,7 +143,7 @@ def test_metrics_are_finite_and_consistent(ref):
 
 def test_heuristic_sections_and_decompaction_call(ref):
     text = A.heuristic_analysis(_ctx(ref), "which drugs, vs healthy?")
-    for head in ("### Biophysical diagnosis", "### Therapeutic strategy (research hypotheses)",
+    for head in ("### Biophysical assessment", "### Therapeutic strategy (research hypotheses)",
                  "### Expression & accessibility insights", "### Answer to your question"):
         assert head in text
     assert "decompaction" in text and "BET" in text and "BCR" in text and A.DISCLAIMER in text
@@ -164,7 +164,7 @@ def test_llm_fallback_chain_and_key_hygiene(ref):
         assert key not in url and headers["x-goog-api-key"] == key
         if "flash-latest" in url:
             return 404, {"error": {"message": "model not found"}}
-        return 200, {"candidates": [{"content": {"parts": [{"text": "### Biophysical diagnosis\nok"}]}}]}
+        return 200, {"candidates": [{"content": {"parts": [{"text": "### Biophysical assessment\nok"}]}}]}
 
     res = A.ask_llm(ctx, "q", "h", A.GEMINI, key, transport=transport)
     assert res.model == A.DEFAULT_MODELS[A.GEMINI][1] and len(seen) == 2

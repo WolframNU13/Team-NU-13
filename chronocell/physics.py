@@ -250,6 +250,26 @@ def loss_smooth(x: np.ndarray, b0: float = B0_NM) -> float:
     return float(np.mean(((bond_lengths(x) - b0) / b0) ** 2))
 
 
+def loss_bend(x: np.ndarray, cos0: float = 0.0) -> float:
+    """Bending stiffness: L_bend = mean_i (cos theta_i - cos0)^2, theta_i the angle between bonds i and i+1.
+
+    A quadratic (harmonic-like) penalty on the bond-bond correlation. cos0 = 0 is the uncorrelated
+    (freely-jointed) average; cos0 > 0 favours straighter, stiffer chains.
+    """
+    v = np.diff(np.asarray(x, dtype=np.float64), axis=0)
+    v /= np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-12)
+    if len(v) < 2:
+        return 0.0
+    return float(np.mean((np.sum(v[1:] * v[:-1], axis=1) - cos0) ** 2))
+
+
+def loss_confinement(x: np.ndarray, radius: float, b0: float = B0_NM) -> float:
+    """Nuclear-envelope confinement: L_conf = mean_i (max(0, |x_i - x_cm| - R) / b0)^2 (spherical wall)."""
+    x = np.asarray(x, dtype=np.float64)
+    r = np.linalg.norm(x - x.mean(axis=0), axis=1)
+    return float(np.mean((np.maximum(r - radius, 0.0) / b0) ** 2))
+
+
 @dataclass(frozen=True)
 class StericReport:
     loss: float             # (1/N) sum_{|i-j|>1, d<d_min} ((d_min - d)/b0)^2

@@ -179,7 +179,8 @@ class _Doc:
 
 def build(ctx: A.AgentContext, analysis_md: str, engine: str, query: str = "", images: list[tuple[str, bytes]] = (),
           crowding: np.ndarray | None = None, genes_table=None, genes_summary: dict | None = None,
-          domains_summary: dict | None = None, therapy: dict | None = None, software: str = "ChronoCell-5D") -> bytes:
+          domains_summary: dict | None = None, therapy: dict | None = None, software: str = "ChronoCell-5D",
+          accuracy: dict | None = None) -> bytes:
     d = _Doc()
     pdf = d.pdf
     pdf.add_page()
@@ -210,6 +211,20 @@ def build(ctx: A.AgentContext, analysis_md: str, engine: str, query: str = "", i
     if crowding is not None:
         d.para("Distribution of local crowding (non-bonded beads within 1.5 b0 of each bead):", size=8.5, color=MUTED)
         d.histogram(crowding, "neighbours per bead")
+
+    if accuracy:
+        d.heading("Accuracy: two separate scores", size=11)
+        cf = (accuracy.get("contact_map_fit") or {}).get("value")
+        mic = accuracy.get("microscopy_accuracy")
+        rows = [["Score", "Value", "What it measures"],
+                ["Contact-map fit", "n/a" if cf is None else f"{cf:.3f} (Spearman)",
+                 "This window: model vs the contacts it was built from. Shows convergence, not correctness."],
+                ["Microscopy accuracy", "n/a" if not mic else f"{mic['overall_percent_of_ceiling']:.1f} % of reproducible structure",
+                 "Method benchmark on held-out chromatin-tracing data (Bintu et al. 2018); not measured on this window."]]
+        d.table(rows, (38, 44, 98), size=8)
+        if mic:
+            d.para("Per test dataset: " + "; ".join(f"{k} {v:.0f} %" for k, v in mic["per_dataset_percent_of_ceiling"].items())
+                   + ". Weak-structure regions score lowest. Full protocol: validation/RESULTS.md.", size=8.3, color=MUTED)
 
     if ctx.comparisons:
         d.heading("3. Other biological states")

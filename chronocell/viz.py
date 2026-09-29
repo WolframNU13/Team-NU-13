@@ -148,13 +148,20 @@ def _submesh(verts: np.ndarray, faces: np.ndarray, keep: np.ndarray) -> tuple[np
 def viewport(sub: np.ndarray, idx: np.ndarray, intensity: np.ndarray, hover: list[str], *, scale: str,
              focus_color: str | None, style: str, radius: float, bead_px: int, height: int,
              context: np.ndarray | None, uirevision: str, scale_bar_nm: float,
-             gc: np.ndarray, epi: np.ndarray, valid: np.ndarray, chrom: genome.Chrom | None = None) -> go.Figure:
+             gc: np.ndarray, epi: np.ndarray, valid: np.ndarray, chrom: genome.Chrom | None = None,
+             clip: tuple[int, float] | None = None, probe: tuple[int, int] | None = None) -> go.Figure:
+    """3D fold. `clip` = (axis 0/1/2, coordinate in nm): a slicing plane that hides everything beyond it
+    (a cross-section). `probe` = (i, j) local bead indices: marks both beads and the straight line between."""
     chrom = chrom or genome.DEFAULT
     fig = go.Figure()
     n = len(sub)
     cs = state_colorscale(scale, focus_color)
 
+    def beyond(pts: np.ndarray) -> np.ndarray:
+        return pts[:, clip[0]] > clip[1] if clip is not None else np.zeros(len(pts), bool)
+
     if context is not None:
+        context = np.where(beyond(context)[:, None], np.nan, context)
         fig.add_trace(go.Scatter3d(x=context[:, 0], y=context[:, 1], z=context[:, 2], mode="lines",
                                    line=dict(color="rgba(150,150,143,0.35)", width=2), hoverinfo="skip",
                                    showlegend=False))
@@ -172,8 +179,9 @@ def viewport(sub: np.ndarray, idx: np.ndarray, intensity: np.ndarray, hover: lis
                                   np.nan_to_num(gc[vbead], nan=0.0), np.nan_to_num(epi[vbead], nan=0.0)])
         # float64 on purpose: float32 is exact only to 2^24 = 16.7 Mb, so chr22 loci would round.
         on_data = valid[vbead][faces].all(axis=1)       # a face is 'unassembled' if any corner is
+        inside = ~beyond(verts)[faces].any(axis=1)       # slicing plane: drop faces with a corner beyond it
         tip_data, tip_gap = _tips(chrom.name)
-        for keep, tip in ((on_data, tip_data), (~on_data, tip_gap)):
+        for keep, tip in ((on_data & inside, tip_data), (~on_data & inside, tip_gap)):
             if not keep.any():
                 continue
             used, f, _ = _submesh(verts, faces, keep)
@@ -185,6 +193,7 @@ def viewport(sub: np.ndarray, idx: np.ndarray, intensity: np.ndarray, hover: lis
                 lightposition=dict(x=1600, y=1200, z=2400)))
     elif style == "Line":
         path, param = catmull_rom(sub, 3)
+        path = np.where(beyond(path)[:, None], np.nan, path)
         fig.add_trace(go.Scatter3d(x=path[:, 0], y=path[:, 1], z=path[:, 2], mode="lines", hoverinfo="skip",
                                    line=dict(width=max(2, bead_px), color=_ring_values(intensity, param),
                                              colorscale=cs, cmin=0, cmax=1)))
@@ -192,14 +201,34 @@ def viewport(sub: np.ndarray, idx: np.ndarray, intensity: np.ndarray, hover: lis
     # Beads carry the locus tooltip in Beads / Line styles (the tube mesh carries its own).
     if style != "Tube":
         beads_visible = style == "Beads"
+        shown_pts = np.where(beyond(sub)[:, None], np.nan, sub)
         fig.add_trace(go.Scatter3d(
-            x=sub[:, 0], y=sub[:, 1], z=sub[:, 2], mode="markers",
+            x=shown_pts[:, 0], y=shown_pts[:, 1], z=shown_pts[:, 2], mode="markers",
             marker=dict(size=bead_px if beads_visible else 3, color=intensity, colorscale=cs, cmin=0, cmax=1,
                         opacity=1.0 if beads_visible else 0.01, line=dict(width=0)),
             text=hover, hovertemplate="%{text}<extra></extra>", showlegend=False))
 
     # 5' / 3' ends and a physical scale bar (units are real nanometres)
     lo_c, hi_c = sub.min(axis=0), sub.max(axis=0)
+    if clip is not None:                                 # translucent slicing plane for orientation
+        a, b = [k for k in range(3) if k != clip[0]]
+        corners = np.zeros((4, 3))
+        corners[:, clip[0]] = clip[1]
+        corners[:, a] = [lo_c[a], hi_c[a], hi_c[a], lo_c[a]]
+        corners[:, b] = [lo_c[b], lo_c[b], hi_c[b], hi_c[b]]
+        fig.add_trace(go.Mesh3d(x=corners[:, 0], y=corners[:, 1], z=corners[:, 2], i=[0, 0], j=[1, 2], k=[2, 3],
+                                color=T.ACCENT, opacity=0.10, hoverinfo="skip", showscale=False))
+    if probe is not None and 0 <= probe[0] < n and 0 <= probe[1] < n:
+        pi, pj = sub[probe[0]], sub[probe[1]]
+        mid = (pi + pj) / 2
+        dist = float(np.linalg.norm(pi - pj))
+        fig.add_trace(go.Scatter3d(x=[pi[0], pj[0]], y=[pi[1], pj[1]], z=[pi[2], pj[2]], mode="lines+markers",
+                                   line=dict(color=T.TERRACOTTA, width=5, dash="dash"),
+                                   marker=dict(size=9, color=T.TERRACOTTA, line=dict(width=1, color=T.INK)),
+                                   hoverinfo="skip", showlegend=False))
+        fig.add_trace(go.Scatter3d(x=[mid[0]], y=[mid[1]], z=[mid[2]], mode="text", text=[f"{dist:,.0f} nm"],
+                                   textfont=dict(family=T.MONO, size=13, color=T.TERRACOTTA), hoverinfo="skip",
+                                   showlegend=False))
     fig.add_trace(go.Scatter3d(
         x=[sub[0, 0], sub[-1, 0]], y=[sub[0, 1], sub[-1, 1]], z=[sub[0, 2], sub[-1, 2]], mode="markers+text",
         marker=dict(size=5, color=T.INK, symbol="circle"), text=[f"  {idx[0]}", f"  {idx[-1]}"],
@@ -354,6 +383,17 @@ def loss_chart(history: dict[str, list], lam_smooth: float, lam_steric: float, h
     fig.update_layout(**T.plot_layout(height, showlegend=True, margin=dict(l=52, r=12, t=6, b=40),
                                       legend=dict(orientation="h", y=-0.28, x=0, font=dict(size=11)),
                                       xaxis=dict(title="Epoch"), yaxis=dict(type="log", title="Loss", exponentformat="power")))
+    return fig
+
+
+def ensemble_loss_chart(history: dict[str, list], height: int = 220) -> go.Figure:
+    """Convergence of the population-model fit (weighted log-variance misfit per Adam step)."""
+    fig = go.Figure(go.Scatter(x=np.asarray(history["iteration"]), y=np.maximum(np.asarray(history["loss"]), 1e-9),
+                               mode="lines", line=dict(color=T.ACCENT, width=1.8), name="misfit",
+                               hovertemplate="step %{x}<br>misfit %{y:.4g}<extra></extra>"))
+    fig.update_layout(**T.plot_layout(height, showlegend=False, margin=dict(l=52, r=12, t=6, b=40),
+                                      xaxis=dict(title="Optimiser step"),
+                                      yaxis=dict(type="log", title="Misfit", exponentformat="power")))
     return fig
 
 

@@ -375,8 +375,8 @@ def heuristic_analysis(ctx: AgentContext, query: str = "") -> str:
     out.append("**Data basis.** " + (" ".join(basis) if basis else
                                      f"{ctx.structure}; signal: {m.signal_label}."))
 
-    # ---- biophysical diagnosis ---------------------------------------------------------
-    out.append("### Biophysical diagnosis")
+    # ---- biophysical assessment ---------------------------------------------------------
+    out.append("### Biophysical assessment")
     out.append(f"- **Fold class:** {call}. ν = {_f(m.nu, 3)} ({m.regime}); packing fraction {_f(m.packing, 3)} "
                f"(reference globule ≈ {REFERENCE_PACKING}).")
     out.append(f"- **Size:** R_g {_f(m.rg_nm, 0)} nm, maximum span {_f(m.span_nm, 0)} nm "
@@ -504,11 +504,11 @@ def heuristic_analysis(ctx: AgentContext, query: str = "") -> str:
         if re.search(r"therap|drug|treat|inhibit|target|intervent|rescue", ql):
             routes.append("therapeutic strategy")
         if re.search(r"compar|differ|versus|\bvs\b|healthy|control|cancer|senesc|disease", ql):
-            routes.append("state comparison in the biophysical diagnosis")
+            routes.append("state comparison in the biophysical assessment")
         if re.search(r"express|transcri|access|open|enhancer|acetyl|signal|hub", ql):
             routes.append("expression & accessibility insights")
         if re.search(r"compact|condens|dens|fold|shape|size|span|radius|gyration|nu\b|ν", ql):
-            routes.append("biophysical diagnosis")
+            routes.append("biophysical assessment")
         named = [g for g in GENE_NOTES if g.lower() in ql and g != "22q11"]
         for g in named:
             routes.append(f"notes on {g}")
@@ -548,7 +548,7 @@ SYSTEM_PROMPT = (
     "with their evidence level (approved / clinical trial / preclinical). Never give dosing or patient advice.\n"
     "4. Do not invent measurements, genes or loci that are not in the context.\n"
     "5. Reply in GitHub Markdown (no HTML) with exactly these level-3 headings, in order: "
-    "'### Biophysical diagnosis', '### Therapeutic strategy (research hypotheses)', "
+    "'### Biophysical assessment', '### Therapeutic strategy (research hypotheses)', "
     "'### Expression & accessibility insights', and '### Answer to your question' only if a question is given. "
     "At most 450 words.")
 
